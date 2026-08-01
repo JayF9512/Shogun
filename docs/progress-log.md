@@ -446,3 +446,62 @@ against the live PostgreSQL database and deployed service.
   cleaned up afterwards.
 - Schema change applied to the live DB via `prisma db push`; service rebuilt
   and restarted; new endpoints and CORS confirmed live.
+
+
+
+---
+
+## Session Milestone: Full-Stack Playable Slice ✅ Complete
+
+**Timeline:** August 1, 2026  
+**PRs merged:** #5 (web game client), #6 (backend audit & improvements — merge commit `c13256a`)
+
+This milestone brought the project from "backend-only" to a **playable, end-to-end
+vertical slice**: a hardened live backend, a browser-playable web client, and a
+complete Unity project ready to open and build.
+
+### Backend — live & hardened
+- **Deployed:** https://728065aeb.abacusai.cloud (systemd `shogun-backend`, port
+  3000, nginx vhost `728065aeb.conf`), backed by a dedicated PostgreSQL database.
+- **Critical fix:** global `BigInt.prototype.toJSON` serializer in `main.ts` —
+  previously every response containing a `BigInt` field (`Player.power`, currency
+  and resource balances) threw *"Do not know how to serialize a BigInt"*, which
+  broke register, login and all player reads. Verified `200` live afterward.
+- **New APIs:** `GET /api/players/:id/profile` (aggregated identity, progression,
+  balances, settlement/resource summary, roster counts); `/api/season-pass/*`
+  (definition, per-player progress, add-points, unlock-premium, idempotent
+  atomic claim) backed by the new `SeasonPassProgress` Prisma model;
+  `/api/leaderboards/*` (live power ranking, snapshot reads, `rebuild/power`).
+- **Race-safe economy:** `spend()` rewritten to a single conditional `updateMany`
+  (`WHERE amount >= cost`) so concurrent spends can never drive a balance negative.
+- **CORS** allow-list (deployed domain + `CORS_ORIGINS` override), preflight verified.
+- **Tests:** **77/77 passing** (added season-pass tier-math suite). End-to-end
+  flow verified against the live DB, test data cleaned up afterward.
+
+### Web game client — browser-playable
+- **Deployed:** https://shogun-play.abacusai.cloud (static, served from
+  `/home/ubuntu/shogun-web`, nginx vhost `shogun-play.conf`).
+- **Mobile-first** responsive UI across **8 screens** (login, main/city, heroes,
+  troops, march, store, season pass, leaderboard) wired to the live backend API.
+- **10 custom artwork assets** produced for heroes, buildings, currencies and
+  backgrounds to give the slice a cohesive Sengoku-era visual identity.
+
+### Unity project — build-ready
+- Complete Unity project under `unity/` with `ProjectSettings/`, `Packages/`,
+  and an `Assets/` tree containing **6 scenes** and the full `Scripts/` hierarchy.
+- **Core:** `Bootstrap.cs`, `ServiceLocator.cs`. **Network:** `AuthService.cs`,
+  `ContentService.cs`, `SeasonPassService.cs`, `LeaderboardService.cs`.
+  **UI:** `ScreenManager.cs`, `LoadingScreen.cs`, `LoginScreen.cs`, `MainScreen.cs`.
+- `BUILD_INSTRUCTIONS.md` and `README.md` document how to open the project, point
+  it at the live backend, and produce Android/iOS builds.
+
+### Net result
+A player can open the web client in a browser, register/log in against the live
+backend, and move through the core screens — while the same backend is ready to
+serve native Unity builds. The stack is server-authoritative per Spec §98 and
+data-driven per Spec §4.6.
+
+---
+
+**Last Updated:** August 1, 2026 (Full-Stack Playable Slice milestone)  
+**Maintained By:** AI Builder (per Spec §4.6 backlog requirement)
