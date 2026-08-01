@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d0b1a" />
+  <title>Shadows of the Shogun</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css?v=3" />
+</head>
+<body>
+  <!-- Phone frame keeps the game mobile-first (max 480px) and centered on desktop -->
+  <div id="device">
+    <div id="app">
+      <!-- Screens are rendered here by the Router -->
+      <div id="screen-root"></div>
+
+      <!-- Fixed top resource HUD (shown only inside the game) -->
+      <header id="topbar" class="hidden"></header>
+
+      <!-- Bottom navigation tab bar (shown only inside the game) -->
+      <nav id="navbar" class="hidden"></nav>
+    </div>
+
+    <!-- Global overlays -->
+    <div id="modal-layer" class="hidden">
+      <div id="modal-backdrop"></div>
+      <div id="modal-sheet"></div>
+    </div>
+
+    <div id="toast-layer"></div>
+
+    <div id="loader" class="hidden">
+      <div class="loader-ring"></div>
+    </div>
+  </div>
+
+  <!-- Core -->
+  <script src="js/api.js?v=3"></script>
+  <script src="js/game.js?v=3"></script>
+  <!-- Screens (each registers itself on window.Screens) -->
+  <script src="js/screens/splash.js?v=3"></script>
+  <script src="js/screens/stateselect.js?v=3"></script>
+  <script src="js/screens/welcome.js?v=3"></script>
+  <script src="js/screens/namecastle.js?v=3"></script>
+  <script src="js/screens/auth.js?v=3"></script>
+  <script src="js/screens/settlement.js?v=3"></script>
+  <script src="js/screens/heroes.js?v=3"></script>
+  <script src="js/screens/world.js?v=3"></script>
+  <script src="js/screens/battle.js?v=3"></script>
+  <script src="js/screens/store.js?v=3"></script>
+  <script src="js/screens/seasonpass.js?v=3"></script>
+  <script src="js/screens/leaderboard.js?v=3"></script>
+  <script src="js/screens/profile.js?v=3"></script>
+  <script src="js/screens/mail.js?v=3"></script>
+  <script src="js/screens/events.js?v=3"></script>
+  <script src="js/screens/clan.js?v=3"></script>
+  <!-- Bootstrap last -->
+  <script src="js/main.js?v=3"></script>
+</body>
+</html>
