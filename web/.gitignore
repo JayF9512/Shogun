@@ -1,0 +1,22 @@
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.next
+.cache
+dist
+build
+out
+target
+*.log
+.logs/
+*.tsbuildinfo
+.env.local
+data/
+*.sqlite
+*.nfs*
+
+# Large artwork ships with the static deployment, not the repo
+assets/images/
+assets/ref*.jpg

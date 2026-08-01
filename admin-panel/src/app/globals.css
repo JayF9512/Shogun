@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Japanese dark aesthetic — sumi ink backgrounds, crimson primary, gold ring */
+    --background: 240 10% 4%;
+    --foreground: 40 20% 92%;
+
+    --card: 240 8% 8%;
+    --card-foreground: 40 20% 92%;
+
+    --popover: 240 8% 8%;
+    --popover-foreground: 40 20% 92%;
+
+    --primary: 0 100% 27%; /* #8B0000 dark red */
+    --primary-foreground: 40 30% 96%;
+
+    --secondary: 240 6% 16%;
+    --secondary-foreground: 40 20% 92%;
+
+    --muted: 240 6% 16%;
+    --muted-foreground: 40 8% 62%;
+
+    --accent: 240 6% 18%;
+    --accent-foreground: 40 20% 92%;
+
+    --destructive: 0 72% 42%;
+    --destructive-foreground: 40 30% 96%;
+
+    --border: 240 6% 18%;
+    --input: 240 6% 20%;
+    --ring: 45 65% 47%; /* gold focus ring */
+
+    --radius: 0.5rem;
+
+    --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", Georgia, serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at 15% -10%, rgba(139, 0, 0, 0.12), transparent 45%),
+      radial-gradient(circle at 100% 0%, rgba(201, 162, 39, 0.06), transparent 40%);
+    background-attachment: fixed;
+  }
+}
+
+/* Thin custom scrollbars to suit the dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(240 6% 24%);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(240 6% 32%);
+}

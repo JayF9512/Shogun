@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#07050f" />
+  <title>Shadows of the Shogun</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css?v=10" />
+  <!-- Three.js for the 3D settlement scene -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <!-- Mobile-first phone frame, centered on desktop -->
+  <div id="device">
+    <div id="app">
+      <div id="screen-root"></div>
+
+      <!-- In-game chrome (shown only inside the main game) -->
+      <header id="topbar" class="hidden"></header>
+      <nav id="navbar" class="hidden"></nav>
+
+      <!-- Tutorial overlay layer (beacon + dialogue) -->
+      <div id="tutorial-layer" class="hidden"></div>
+    </div>
+
+    <!-- Global overlays -->
+    <div id="modal-layer" class="hidden">
+      <div id="modal-backdrop"></div>
+      <div id="modal-sheet"></div>
+    </div>
+    <div id="toast-layer"></div>
+    <div id="loader" class="hidden"><div class="loader-ring"></div></div>
+  </div>
+
+  <!-- Core -->
+  <script src="js/api.js?v=10"></script>
+  <script src="js/game.js?v=10"></script>
+  <script src="js/tutorial.js?v=10"></script>
+  <script src="js/settlement3d.js?v=10"></script>
+  <script src="js/worldmap.js?v=10"></script>
+
+  <!-- Screens (each registers on window.Screens) -->
+  <script src="js/screens/splash.js?v=10"></script>
+  <script src="js/screens/stateselect.js?v=10"></script>
+  <script src="js/screens/welcome.js?v=10"></script>
+  <script src="js/screens/namecastle.js?v=10"></script>
+  <script src="js/screens/prologue.js?v=10"></script>
+  <script src="js/screens/auth.js?v=10"></script>
+  <script src="js/screens/settlement.js?v=10"></script>
+  <script src="js/screens/heroes.js?v=10"></script>
+  <script src="js/screens/troops.js?v=10"></script>
+  <script src="js/screens/world.js?v=10"></script>
+  <script src="js/screens/battle.js?v=10"></script>
+  <script src="js/screens/store.js?v=10"></script>
+  <script src="js/screens/seasonpass.js?v=10"></script>
+  <script src="js/screens/leaderboard.js?v=10"></script>
+  <script src="js/screens/profile.js?v=10"></script>
+  <script src="js/screens/mail.js?v=10"></script>
+  <script src="js/screens/events.js?v=10"></script>
+  <script src="js/screens/clan.js?v=10"></script>
+  <script src="js/screens/admin.js?v=10"></script>
+
+  <!-- Bootstrap -->
+  <script src="js/main.js?v=10"></script>
+</body>
+</html>

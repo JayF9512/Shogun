@@ -1,0 +1,26 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+.vs/
+.vsconfig
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.booproj
+*.pidb
+*.svd
+*.pdb
+*.mdb
+*.apk
+*.aab
+*.unitypackage
+crashlytics-build.properties
+sysinfo.txt

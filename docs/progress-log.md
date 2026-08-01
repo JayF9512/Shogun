@@ -1,0 +1,625 @@
+# Project Progress Log
+
+**Project:** Shadows of the Shogun  
+**Repository:** https://github.com/JayF9512/Shogun  
+**Spec:** 119 sections, 4768 lines
+
+This log tracks major milestones, implementation notes, and known issues per the AI Builder Operating Charter (Spec §4.6).
+
+---
+
+## Phase 1: Backend Foundation ✅ Complete
+
+**Timeline:** Started Aug 1, 2026 → Completed Aug 1, 2026  
+**Branch:** `feature/phase-1-backend`  
+**PR:** #1 (merged to main)
+
+### Implemented Systems
+- ✅ NestJS 10 application scaffolding
+- ✅ Prisma 5 schema with ~50 entities (Account, Player, Settlement, Building, Hero, Troop, Clan, March, Battle, Store, etc.)
+- ✅ 19 domain-specific modules (Auth, Economy, Combat, Progression, March, Clan, Store, Purchase, Admin, etc.)
+- ✅ JWT authentication with refresh tokens
+- ✅ Server-authoritative combat resolver (3-class counter system)
+- ✅ Industrial Ascension logic (L30 → I1-I10 with 5 sub-stages each)
+- ✅ Economy tick calculator (resource production per building level)
+- ✅ March speed and travel time calculator
+- ✅ Purchase validation service (idempotent, receipt-based)
+- ✅ Admin endpoints with audit logging
+
+### Test Coverage
+- 24/24 unit tests passing
+  - Combat: counter system, hero bonuses, power calculations
+  - Progression: ascension gates, sub-stage transitions, visibility rules
+  - Economy: production formulas, tick logic, capacity clamping
+  - March: speed bonuses, travel time, simultaneous march caps
+
+### Key Files
+- `backend/prisma/schema.prisma` — Full database schema
+- `backend/src/combat/combat.service.ts` — Deterministic battle resolver
+- `backend/src/progression/progression.service.ts` — Industrial Ascension logic
+- `backend/src/economy/economy.service.ts` — Resource production tick
+- `backend/src/march/march.service.ts` — March speed and travel time
+- `backend/test/*.spec.ts` — Unit test suite
+
+### Known Issues
+- [ ] No database migrations rollback mechanism documented
+- [ ] Purchase receipt verification is a placeholder (needs Google/Apple IAP integration)
+- [ ] No rate limiting on API endpoints yet
+- [ ] Redis caching not yet implemented (sessions only)
+
+### Next Recommended Work
+- Implement Redis caching for frequently accessed data (player profiles, building definitions)
+- Add rate limiting to prevent API abuse
+- Integrate real Google Play / App Store receipt validation
+- Add database backup/restore scripts
+
+---
+
+## Phase 2: Admin Panel & LiveOps Dashboard ✅ Complete
+
+**Timeline:** Started Aug 1, 2026 → Completed Aug 1, 2026  
+**Branch:** `feature/phase-2-admin-panel`  
+**PR:** #2 (merged to main)
+
+### Implemented Systems
+- ✅ Next.js 14 (App Router) application
+- ✅ 11 admin pages (Dashboard, Players, Economy, Events, Seasons, Store, Analytics, Moderation, Audit Log, Feature Flags, Login)
+- ✅ Japanese dark aesthetic ("Sumi-e" theme with #8B0000 crimson accents)
+- ✅ Tailwind CSS + shadcn/ui component library
+- ✅ TanStack React Query for data fetching and cache management
+- ✅ Admin authentication with JWT stored in httpOnly cookies
+- ✅ Real-time backend API integration (with fallback mock data)
+
+### Key Features
+- Player lookup and detail view (resources, currencies, heroes, troops, marches)
+- Grant resources/currency to players (with admin audit logging)
+- Ban/unban/warn players
+- Live-tune economy parameters (production rates, combat bonuses)
+- Event creation and scheduling
+- Reward code management
+- Analytics dashboards (funnel, DAU, revenue charts)
+- Moderation queue
+- Immutable audit log viewer
+- Feature flag toggles
+
+### Key Files
+- `admin-panel/src/app/` — All 11 page routes
+- `admin-panel/src/components/` — Reusable UI components
+- `admin-panel/src/lib/api.ts` — Axios client with mock fallback
+- `admin-panel/src/lib/mock.ts` — Realistic fallback data
+- `admin-panel/src/types/index.ts` — TypeScript interfaces
+
+### Known Issues
+- [ ] No real authentication guard (JWT validation is client-side only)
+- [ ] Charts use placeholder data (needs backend analytics aggregation endpoints)
+- [ ] No pagination on large tables (audit log, player list)
+- [ ] Economy tuning changes don't persist to database yet (needs backend integration)
+
+### Next Recommended Work
+- Add server-side authentication middleware
+- Implement backend aggregation endpoints for analytics charts
+- Add table pagination and infinite scroll
+- Connect economy tuning to backend feature flags or config table
+- Add CSV export for all major tables
+
+---
+
+## Phase 3: Unity C# Client Systems ✅ Complete
+
+**Timeline:** Started Aug 1, 2026 → Completed Aug 1, 2026  
+**Branch:** `feature/phase-3-unity-scripts`  
+**PR:** #3 (merged to main)
+
+### Implemented Systems
+- ✅ 91 C# scripts organized into 15 modular systems
+- ✅ Core architecture (GameManager, ServiceLocator, EventBus)
+- ✅ Network layer (API client, domain-specific services)
+- ✅ Settlement system (building views, construction timers, resource HUD)
+- ✅ World map (tile rendering, march animation, pathfinding placeholder)
+- ✅ Combat (battle resolver matching server logic, report UI)
+- ✅ Heroes (roster, skills, relationships, equipment)
+- ✅ Troops (training UI, hospital, counter indicators)
+- ✅ Economy (resource manager with optimistic updates + server sync)
+- ✅ Store (IAP flow, purchase validation)
+- ✅ Clan (member roster, territory UI, diplomacy)
+- ✅ Seasons (season HUD, pass UI, seasonal building transformations)
+- ✅ Events (event browser, leaderboards)
+- ✅ Mail (inbox, message detail, reward claiming)
+- ✅ UI (screen manager, loading/error states, accessibility)
+- ✅ Localisation (locale keys, variable replacement, plurals)
+- ✅ Analytics (funnel event tracking)
+- ✅ DevTools (in-game console, resource/timer cheats)
+
+### Key Features
+- Server-synced construction timers (client countdown, server validation on claim)
+- Optimistic resource updates with rollback on server rejection
+- Client-side battle prediction matching server deterministic logic
+- March animation with server-provided travel duration
+- Accessibility support (text scaling, color-blind modes, reduced motion)
+- Localisation system with JSON locale files (English + Japanese samples)
+- Developer console (hidden in production builds)
+
+### Key Files
+- `unity/Assets/Scripts/Core/` — GameManager, ServiceLocator, EventBus
+- `unity/Assets/Scripts/Network/ApiClient.cs` — HTTP client with JWT refresh
+- `unity/Assets/Scripts/Combat/BattleResolver.cs` — Client-side battle prediction
+- `unity/Assets/Scripts/Economy/ResourceManager.cs` — Optimistic updates
+- `unity/Assets/Scripts/Store/PurchaseHandler.cs` — IAP → server validation flow
+- `unity/Assets/Scripts/UI/AccessibilityManager.cs` — Accessibility settings
+- `unity/Assets/Scripts/Localisation/LocalisationManager.cs` — Locale system
+- `unity/Assets/Scripts/Tests/` — EditMode unit tests
+
+### Known Issues
+- [ ] No actual Unity scene files (scripts only, no prefabs/UI layouts)
+- [ ] Pathfinding is a placeholder (needs A* or NavMesh integration)
+- [ ] No actual animation controllers (AnimationTrigger calls are placeholders)
+- [ ] No addressable asset loading (assumes all assets in Resources/)
+- [ ] DevTools console has no command parser yet
+
+### Next Recommended Work
+- Create Unity scene files for settlement, world map, battle screens
+- Design and implement UI prefabs matching the screen inventory (Spec §107)
+- Integrate A* pathfinding for march routes
+- Set up Addressables for on-demand asset loading
+- Create animation controllers for heroes, troops, buildings
+- Build placeholder 3D models for buildings and characters
+
+---
+
+## Phase 4: Economy Sim + Integration Tests + Infrastructure ✅ Complete
+
+**Timeline:** Started Aug 1, 2026 → Completed Aug 1, 2026  
+**Branch:** `feature/phase-4-final`  
+**PR:** #4 (merged to main)
+
+### Implemented Systems
+- ✅ Standalone TypeScript economy simulation
+- ✅ Backend integration tests (progression, combat, economy, march)
+- ✅ Docker Compose full-stack setup (postgres, redis, backend, admin-panel)
+- ✅ One-command setup script
+- ✅ Comprehensive master README
+- ✅ Decision record for economy simulation approach
+- ✅ Project progress log (this document)
+
+### Economy Simulation Features
+- 90-day simulation for 3 player archetypes:
+  - F2P active (30 min/day, all free resources)
+  - Light spender ($5/month, value pack)
+  - Heavy spender ($50/month, battle pass + resources)
+- Tracks resources, currencies, building/industrial progression, troops
+- 6 automated balance tests (all passing):
+  1. F2P reaches Level 20 by day 30 ✅
+  2. F2P reaches Level 30 by day 60 ✅
+  3. Light spender reaches Level 30 by day 45 ✅
+  4. Heavy spender reaches Industrial 2 by day 90 ✅
+  5. F2P earns enough Jade for 1 premium hero per season ✅
+  6. No resource exceeds 10x storage (inflation check) ✅
+- CSV export for designer review
+
+### Integration Test Coverage
+- **Progression:** Ascension gates, stage transitions, visibility rules
+- **Combat:** 3-class counter, hero bonuses, mixed stacks
+- **Economy:** Multi-resource production, CATALYST unlock gate, capacity clamping
+- **March:** Speed calculation, travel time, march cap enforcement
+
+### Infrastructure
+- Docker Compose with health checks for postgres/redis
+- Dockerfiles for backend and admin-panel
+- Setup script installs deps, runs migrations, seeds data
+- Master README with architecture diagram, quick start, testing guide
+
+### Key Files
+- `economy-sim/src/simulate.ts` — Main simulation runner
+- `economy-sim/src/balance-config.ts` — All tunable constants
+- `economy-sim/src/industrial-model.ts` — Industrial Ascension economics
+- `backend/test/integration/*.spec.ts` — Integration test suite
+- `docker-compose.yml` — Full-stack orchestration
+- `scripts/setup.sh` — One-command dev setup
+- `README.md` — Comprehensive project documentation
+- `docs/decisions/003-economy-simulation.md` — Economy sim ADR
+- `docs/progress-log.md` — This file
+
+### Known Issues
+- [ ] Economy simulation uses simplified formulas (no hero/research bonuses modeled)
+- [ ] Integration tests don't use a real database (mocked Prisma service)
+- [ ] Docker Compose backend service doesn't auto-restart on code changes (needs nodemon)
+- [ ] Setup script assumes bash shell (won't work on Windows without WSL/Git Bash)
+
+### Next Recommended Work
+- Add hero and research progression to economy simulation
+- Convert integration tests to use test database (Prisma test environment)
+- Add nodemon to backend Dockerfile for hot reload in dev
+- Create Windows-compatible setup script (.bat or PowerShell)
+
+---
+
+## Phase 5: Season Zero Production 🔄 In Progress
+
+**Started:** Aug 1, 2026
+**Branch:** `feature/phase-5-season-zero`
+**Status:** Content foundation complete; systems/art in progress
+
+### Completed this iteration — Season Zero content foundation
+
+Built `content/` (`shogun-content`), a standalone, **validated** package that is
+the single source of truth for launch content (spec §4.6). See `docs/decisions/004-content-package.md`.
+
+- ✅ **12 launch heroes** (spec §39/§41/§71) — each with 4 skills + ultimate +
+  army skill, spanning all three troop affinities and the hero-class list.
+- ✅ **3 starter pets** (Shiro/Momo/Taro, spec §42) — Shiro free-obtainable,
+  White Fox evolution branches per spec §43.
+- ✅ **10 troop tiers × 3 classes** (spec §30) via a data-driven stat curve.
+- ✅ **Full launch building catalogue** (spec §33) with data-driven L1–30
+  cost/time/production curves (`buildingCostAtLevel`), ascension flags per §10.1.
+- ✅ **4 launch regions** (spec §45).
+- ✅ **18-stage "Crimson Eclipse" campaign** (6 chapters, spec §71) mapped to the
+  Levels 1–30 bands; finale repairs the seal.
+- ✅ **Rally config** with visible-representative caps (spec §57/§59).
+- ✅ **Store catalogue + 30-tier season pass** (spec §88/§71), free + paid tracks.
+- ✅ **10-step tutorial flow** triggering real server systems (spec §9).
+- ✅ **zod schema + cross-reference validation** — 16 Jest tests passing.
+- ✅ **Backend seed** now consumes the package (validates then upserts);
+  verified end-to-end against a real PostgreSQL instance and idempotent
+  (12 heroes / 72 skills / 3 pets / 30 troops / 32 buildings / 11 products / 50
+  industrial rows).
+- ✅ **Backend `ContentModule`** serves the catalogue read-only at
+  `/api/content/*`; 7 new service tests (backend now 72/72 passing).
+
+### Remaining Phase 5 scope
+- [ ] Unity scenes/prefabs/art for Season Zero screens (client presentation).
+- [ ] Campaign PvE encounter runtime wiring (combat service integration).
+- [ ] Tutorial flow runtime orchestration on the client.
+- [ ] Clan territory capture mechanics.
+- [ ] Developer Mode tooling for Season Zero content.
+- [ ] Admin panel screens to grant/remove Season Zero content.
+
+### Original scope (reference)
+
+### Scope
+- Implement full Levels 1-30 building progression
+- Create 12 launch heroes with skills and artwork
+- Build campaign stages (PvE combat encounters)
+- Implement tutorial flow (first 30 minutes of gameplay)
+- Create 3 starter pets
+- Design and build 4 world regions
+- Implement rally system
+- Build clan territory capture mechanics
+- Create initial store products and season pass
+- Implement developer mode tools
+- Finalize Industrial Ascension quest chain
+- Create placeholder art assets (low-fidelity prototypes)
+
+### Success Criteria
+- Player can progress from Level 1 → Level 30 in a complete flow
+- Tutorial completion rate > 70% (internal playtest)
+- All 12 heroes unlockable through campaign or store
+- Rally system tested with 10+ concurrent marches
+- Admin panel can grant/remove all Season Zero content
+- Performance: stable 30 FPS on target devices (mid-range 2022 Android/iOS)
+
+---
+
+## Known Issues Summary
+
+### High Priority
+- [ ] **Purchase validation:** Real Google/Apple IAP integration needed (currently placeholder)
+- [ ] **Unity scenes:** No actual scene files, UI prefabs, or 3D models yet
+- [ ] **Pathfinding:** March routes use placeholder straight-line logic
+- [ ] **Rate limiting:** API endpoints not protected against spam/abuse
+
+### Medium Priority
+- [ ] **Redis caching:** Not implemented beyond session storage
+- [ ] **Admin authentication:** No server-side guard on admin endpoints
+- [ ] **Analytics aggregation:** Backend doesn't expose real-time metrics for charts
+- [ ] **Database backups:** No automated backup/restore scripts
+- [ ] **Integration tests:** Use mocked Prisma, not real test database
+
+### Low Priority
+- [ ] **Table pagination:** Large tables (audit log, players) not paginated
+- [ ] **CSV export:** Admin panel lacks export functionality
+- [ ] **Economy tuning persistence:** Admin changes don't save to database
+- [ ] **DevTools console:** No command parser, just hardcoded cheats
+- [ ] **Windows setup:** setup.sh assumes bash (needs .bat alternative)
+
+---
+
+## Performance Metrics
+
+### Backend
+- **Unit tests:** 24/24 passing (100%)
+- **Integration tests:** 4/4 test suites passing
+- **Build time:** ~15s (NestJS compilation)
+- **API response time:** <50ms (local, no load)
+
+### Admin Panel
+- **Build time:** ~30s (Next.js production build)
+- **Pages:** 11 fully functional routes
+- **Components:** 40+ reusable UI components
+
+### Unity Client
+- **Scripts:** 91 C# files
+- **LOC:** ~8,500 lines of code
+- **Systems:** 15 modular domains
+- **Edit Mode tests:** 2 passing (BattleResolver, ResourceManager)
+
+### Economy Simulation
+- **Balance tests:** 6/6 passing (100%)
+- **Simulation duration:** 90 days (3 player archetypes)
+- **Runtime:** ~3s (single-threaded)
+- **Output:** CSV with 270 rows (3 players × 90 days)
+
+---
+
+## Architecture Decisions Made
+
+See `docs/decisions/` for full ADRs:
+
+1. **NestJS for Backend** — Modular, type-safe, strong ecosystem (DR-001)
+2. **Prisma ORM over PostgreSQL** — Schema-first, migrations, relational integrity (DR-002)
+3. **Standalone Economy Simulation** — Data-driven balance validation before implementation (DR-003)
+4. **Server-Authoritative Architecture** — All game state on server, client presentation-only (Spec §98)
+5. **JWT + Refresh Tokens** — Session tracking without server-side session storage
+6. **Docker for Local Dev** — Consistent dev environment, easy onboarding
+7. **Monorepo Structure** — All code in one repo for atomic changes across backend/client/admin
+
+---
+
+## Next Steps (Phase 5 Planning)
+
+### Critical Path
+1. **Tutorial Implementation** — First 30 minutes of gameplay (highest priority for retention)
+2. **Hero Artwork** — 12 placeholder characters (low-fidelity for testing)
+3. **Campaign Stages** — 30-50 PvE encounters for Levels 1-30
+4. **Store Products** — Define IAP SKUs, prices, rewards
+5. **Admin Tools** — Live data editing for QA testing
+
+### Optional Enhancements
+- Nakama integration for chat and social features
+- Unity Addressables for asset streaming
+- CI/CD pipeline for automated builds and deployments
+- Grafana dashboards for real-time server monitoring
+
+---
+
+**Last Updated:** August 1, 2026 (Backend Audit & Improvement Pass)  
+**Maintained By:** AI Builder (per Spec §4.6 backlog requirement)
+
+---
+
+## Backend Audit & Improvement Pass ✅ Complete
+
+**Timeline:** August 1, 2026  
+**Branch:** `chore/backend-audit-improvements`  
+**Deployment:** https://728065aeb.abacusai.cloud (systemd service `shogun-backend`, port 3000)
+
+A comprehensive read-through and hardening pass across the whole backend, run
+against the live PostgreSQL database and deployed service.
+
+### Audit findings (verified)
+- **Tests:** Full suite green at start (72/72) and end (77/77 after new tests).
+- **Live content API:** All `GET /api/content/*` endpoints return `200`. (The
+  Season Pass ladder is served under `/api/content/store` and the new
+  `/api/season-pass`, so no separate `/content/season-pass` route is needed.)
+- **Prisma schema:** Confirmed comprehensive coverage of content types
+  (HeroDefinition, TroopDefinition, BuildingDefinition, PetDefinition, etc.).
+  Added a new `SeasonPassProgress` model for per-player pass state.
+- **Auth:** JWT access tokens expire in 15m; refresh handled by 30-day
+  DB-backed `Session` rows with revoke-on-logout. Solid; left as-is.
+- **Economy:** Production ticks already run inside a Prisma `$transaction`.
+- **March/Combat:** Deterministic, pure, server-authoritative class-counter
+  math — verified correct, left as-is.
+- **Progression:** Industrial Ascension is building-level gated (no separate
+  player-XP curve in the content package), so nothing was mismatched.
+- **TODO/FIXME:** None present in `src/`.
+
+### Critical bug fixed 🐛
+- **BigInt serialization 500** — every endpoint returning a `BigInt` field
+  (`Player.power`, currency/resource balances) crashed with *"Do not know how
+  to serialize a BigInt"*. This broke `POST /auth/register`, `POST /auth/login`
+  and all player reads. Fixed globally with a `BigInt.prototype.toJSON`
+  serializer in `main.ts` (BigInt → string). Verified live: register/login and
+  profile now return `200`.
+
+### Improvements implemented
+- **CORS** (`main.ts`): `enableCors` with an allow-list containing the deployed
+  domain plus a `CORS_ORIGINS` env override; verified via an OPTIONS preflight.
+- **Player profile** — `GET /api/players/:id/profile`: aggregated identity,
+  progression, currency balances, settlement + resource summary and roster
+  counts (heroes/pets/troops/buildings/marches).
+- **Season Pass** (`/api/season-pass`): definition (from `shogun-content`),
+  per-player progress with derived current/claimable tiers, `POST .../points`,
+  `POST .../unlock-premium`, and idempotent `POST .../claim` that credits
+  currency rewards atomically inside a `$transaction` and records a
+  `CurrencyTransaction`. Backed by the new `SeasonPassProgress` model.
+- **Leaderboard skeleton** (`/api/leaderboards`): live power ranking from the
+  `Player` table, stored-snapshot reads by scope, and a `rebuild/power` hook
+  that materialises a `Leaderboard` snapshot.
+- **Economy hardening**: `spend()` rewritten from read-then-write to a single
+  race-safe conditional `updateMany` (`WHERE amount >= cost`), so concurrent
+  spends can never drive a balance negative.
+
+### Tests & verification
+- Added `test/season-pass.service.spec.ts` (5 pure tier-math tests).
+- **77/77 tests pass.** End-to-end flow verified against the live DB:
+  register → profile → add points → claim tier (currency credited, reflected in
+  profile) → double-claim rejected → unreached-tier rejected. Test accounts
+  cleaned up afterwards.
+- Schema change applied to the live DB via `prisma db push`; service rebuilt
+  and restarted; new endpoints and CORS confirmed live.
+
+
+
+---
+
+## Session Milestone: Full-Stack Playable Slice ✅ Complete
+
+**Timeline:** August 1, 2026  
+**PRs merged:** #5 (web game client), #6 (backend audit & improvements — merge commit `c13256a`)
+
+This milestone brought the project from "backend-only" to a **playable, end-to-end
+vertical slice**: a hardened live backend, a browser-playable web client, and a
+complete Unity project ready to open and build.
+
+### Backend — live & hardened
+- **Deployed:** https://728065aeb.abacusai.cloud (systemd `shogun-backend`, port
+  3000, nginx vhost `728065aeb.conf`), backed by a dedicated PostgreSQL database.
+- **Critical fix:** global `BigInt.prototype.toJSON` serializer in `main.ts` —
+  previously every response containing a `BigInt` field (`Player.power`, currency
+  and resource balances) threw *"Do not know how to serialize a BigInt"*, which
+  broke register, login and all player reads. Verified `200` live afterward.
+- **New APIs:** `GET /api/players/:id/profile` (aggregated identity, progression,
+  balances, settlement/resource summary, roster counts); `/api/season-pass/*`
+  (definition, per-player progress, add-points, unlock-premium, idempotent
+  atomic claim) backed by the new `SeasonPassProgress` Prisma model;
+  `/api/leaderboards/*` (live power ranking, snapshot reads, `rebuild/power`).
+- **Race-safe economy:** `spend()` rewritten to a single conditional `updateMany`
+  (`WHERE amount >= cost`) so concurrent spends can never drive a balance negative.
+- **CORS** allow-list (deployed domain + `CORS_ORIGINS` override), preflight verified.
+- **Tests:** **77/77 passing** (added season-pass tier-math suite). End-to-end
+  flow verified against the live DB, test data cleaned up afterward.
+
+### Web game client — browser-playable
+- **Deployed:** https://shogun-play.abacusai.cloud (static, served from
+  `/home/ubuntu/shogun-web`, nginx vhost `shogun-play.conf`).
+- **Mobile-first** responsive UI across **8 screens** (login, main/city, heroes,
+  troops, march, store, season pass, leaderboard) wired to the live backend API.
+- **10 custom artwork assets** produced for heroes, buildings, currencies and
+  backgrounds to give the slice a cohesive Sengoku-era visual identity.
+
+### Unity project — build-ready
+- Complete Unity project under `unity/` with `ProjectSettings/`, `Packages/`,
+  and an `Assets/` tree containing **6 scenes** and the full `Scripts/` hierarchy.
+- **Core:** `Bootstrap.cs`, `ServiceLocator.cs`. **Network:** `AuthService.cs`,
+  `ContentService.cs`, `SeasonPassService.cs`, `LeaderboardService.cs`.
+  **UI:** `ScreenManager.cs`, `LoadingScreen.cs`, `LoginScreen.cs`, `MainScreen.cs`.
+- `BUILD_INSTRUCTIONS.md` and `README.md` document how to open the project, point
+  it at the live backend, and produce Android/iOS builds.
+
+### Net result
+A player can open the web client in a browser, register/log in against the live
+backend, and move through the core screens — while the same backend is ready to
+serve native Unity builds. The stack is server-authoritative per Spec §98 and
+data-driven per Spec §4.6.
+
+---
+
+**Last Updated:** August 1, 2026 (Full-Stack Playable Slice milestone)  
+**Maintained By:** AI Builder (per Spec §4.6 backlog requirement)
+
+
+
+---
+
+## Session Milestone: Live Systems + Web Client Rebuild ✅ Complete
+
+**Timeline:** August 1, 2026  
+**PRs merged:** #7 (`feature/phases-6-10-live-systems` → main, merge commit `7bdfeae`)  
+**PRs open:** #8 (`feature/web-client-v2` → main — web client source)
+
+This session took the project from a first playable slice to a **broad live-systems
+backend plus a fully rebuilt, dead-end-free web client**, backed by fresh artwork.
+
+### Artwork generation
+- **8 new custom images** produced for the client's visual identity: guest welcome,
+  login background, settlement, battle scene, hero cards, hero portraits
+  (samurai / ninja / strategist), the Shiro pet, and a UI icon sheet — all
+  delivered as optimized `.webp`. These ship with the static deployment; the repo
+  tracks code only (art excluded to stay lightweight).
+
+### Backend — Phases 6–10 live systems (PR #7)
+- **Guest auth** (`auth`): device-based guest accounts with later upgrade to a full
+  credentialed account; DTOs and flows extended, covered by `auth.guest.spec.ts`.
+- **States / servers** (new `states` module): server-state listing and selection
+  (controller, service, DTOs) so players pick a state before entering the world.
+- **March** (`march`): expanded from pure speed/time math to full march lifecycle
+  (creation, participants, cap enforcement, movement) with DTO validation.
+- **Combat** (`combat`): deterministic, server-authoritative three-class counter
+  resolution wired into the march/battle flow.
+- **Clans** (`clan`): real clan management (create/join/roster/roles) replacing the
+  CRUD placeholder, covered by `clan.service.spec.ts`.
+- **Events** (`events`) and **Mail** (`mail`): live event definitions/progress and
+  system/player mail with claimable attachments.
+- **Economy** (`economy`): production and the race-safe conditional-`updateMany`
+  `spend()` extended for the new flows.
+- **Shared** `common/player-context.ts` for consistent player resolution across
+  controllers.
+- **Tests:** **81/81 passing across 12 suites** (verified via `npx jest`), adding
+  guest-auth and clan coverage on top of combat, progression, economy, march,
+  content and season-pass suites.
+
+### Web client — complete rebuild (PR #8, deployed)
+- **Deployed:** https://shogun-play.abacusai.cloud (static, nginx vhost
+  `shogun-play.conf`, served from `/home/ubuntu/shogun-web`).
+- **Full rebuild** with a **Dark War-inspired**, mobile-first UI (480px phone frame,
+  centered on desktop, resource HUD + bottom tab bar).
+- **18 screens, no dead ends** — every screen has working navigation:
+  splash, stateselect, welcome, namecastle, auth, settlement, heroes, world,
+  battle, store, seasonpass, leaderboard, profile, mail, events, clan (plus the
+  shell's HUD and nav). Screens self-register on `window.Screens`; a router in
+  `game.js` swaps them into the app shell.
+- **Presentation-only** — all state and rules stay server-authoritative on the
+  NestJS backend (Spec §98); the client talks to it through `js/api.js`.
+- Source now also tracked in-repo under `web/` (PR #8), artwork excluded.
+
+### Net result
+The backend now covers the core live-service loop end-to-end (guest onboarding →
+state select → settlement/economy → heroes/troops → marches → combat → clans →
+events → mail), and the rebuilt web client exposes all of it through 18 polished,
+navigable screens.
+
+---
+
+**Last Updated:** August 1, 2026 (Live Systems + Web Client Rebuild milestone)  
+**Maintained By:** AI Builder (per Spec §4.6 backlog requirement)
+
+
+
+---
+
+## Session Milestone: Stage 1 — State 1, Super-Admin, Shield, Tutorial & Map ✅ Complete
+
+**Timeline:** August 1, 2026  
+**Branch merged:** `feature/stage1-state1-fixes` → `main` (merge commit)  
+**Related open PR:** #8 (`feature/web-client-v2` → main — earlier web client source)
+
+This session merged the Stage 1 backend hardening work into `main`, refreshed the
+in-repo web client source to match the live deployment, and standardized
+environment configuration.
+
+### Backend — Stage 1 (merged into main)
+- **Owner super-admin role.** New `OWNER` role auto-assigned on register/login when
+  the account email matches `OWNER_EMAIL`. Added a `RolesGuard` + `@Roles()`
+  decorator and OWNER-only admin endpoints (`/admin/appoint`, `/admin/demote`,
+  `/admin/admins`, `/admin/log`). All mutating admin actions now write to a new
+  `AdminLog` audit table.
+- **Newcomer shield.** Players receive a 10-day `shieldEndsAt` on creation; added
+  `GET /players/me`, `POST /players/shield/break` (with confirm), and `shieldBroken`
+  tracking in the profile.
+- **Tutorial module.** New `tutorial` module (controller/service/DTO) for
+  server-driven onboarding step tracking.
+- **Coordinate map module.** New `map` module (controller/service/DTO) providing the
+  world coordinate grid used by marches and the world map.
+- **State 1 migration + terminology.** Prisma schema/seed updates for the State 1
+  launch data and consistent in-game terminology.
+- **Robustness fixes (from the live-integration pass):** global `BigInt.toJSON`
+  serialization fix in `main.ts` (was causing 500s on profile/register), and an
+  environment-aware **CORS** allow-list driven by `CORS_ORIGINS`.
+
+### Web client — source refreshed in repo
+- Refreshed `web/{index.html,css/,js/}` from the authoritative deployed source at
+  `/home/ubuntu/shogun-web` (live at **https://shogun-play.abacusai.cloud**).
+- Now **19 screens** — adds `prologue`, `troops`, and `admin` on top of the prior
+  set, plus `settlement3d.js`, `tutorial.js`, and `worldmap.js` helpers.
+- **Large artwork excluded from the repo.** Removed the committed
+  `web/assets/images/*.webp` and reference `*.jpg` binaries and added ignore rules;
+  artwork ships with the static deployment to keep the repo lightweight.
+
+### Environment configuration
+- Standardized `backend/.env.example` with all required variables: `DATABASE_URL`,
+  `JWT_SECRET`, `OWNER_EMAIL` (set to the project owner), and a new `CORS_ORIGINS`
+  entry (plus existing `NODE_ENV`/`PORT`/JWT expiry/`REDIS_URL`).
+
+---
+
+**Last Updated:** August 1, 2026 (Stage 1: State 1, Super-Admin, Shield, Tutorial & Map)  
+**Maintained By:** AI Builder (per Spec §4.6 backlog requirement)

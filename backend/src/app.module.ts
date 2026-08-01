@@ -21,8 +21,15 @@ import { SeasonModule } from './season/season.module';
 import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
+import { ContentModule } from './content/content.module';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { StatesModule } from './states/states.module';
+import { TutorialModule } from './tutorial/tutorial.module';
+import { MapModule } from './map/map.module';
+import { HealthController } from './health.controller';
 
 @Module({
+  controllers: [HealthController],
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'] }),
     PrismaModule,
@@ -45,6 +52,11 @@ import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
     AdminModule,
     AnalyticsModule,
     FeatureFlagsModule,
+    ContentModule,
+    LeaderboardModule,
+    StatesModule,
+    TutorialModule,
+    MapModule,
   ],
 })
 export class AppModule {}

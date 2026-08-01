@@ -1,0 +1,16 @@
+{
+    "isRtl": false,
+    "entries": [
+        { "key": "app.title", "value": "将軍の影" },
+        { "key": "greeting", "value": "お帰りなさい、{playerName}" },
+        { "key": "settlement.tab", "value": "集落" },
+        { "key": "worldmap.tab", "value": "ワールドマップ" },
+        { "key": "heroes.tab", "value": "英雄" },
+        { "key": "clan.tab", "value": "一族" },
+        { "key": "store.tab", "value": "ストア" },
+        { "key": "troop.samurai", "value": "侍衛" },
+        { "key": "troop.yumi", "value": "弓兵" },
+        { "key": "troop.komainu", "value": "狛犬騎兵" },
+        { "key": "march.count", "one": "{n} 件の行軍", "other": "{n} 件の行軍" }
+    ]
+}
