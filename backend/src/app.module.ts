@@ -22,8 +22,10 @@ import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
 import { ContentModule } from './content/content.module';
+import { HealthController } from './health.controller';
 
 @Module({
+  controllers: [HealthController],
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'] }),
     PrismaModule,
