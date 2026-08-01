@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+# Build output
+dist/
+build/
+*.tsbuildinfo
+# Env / secrets (spec §111/§114)
+.env
+.env.*
+!.env.example
+# Prisma generated client
+backend/node_modules/.prisma/
+# Logs & coverage
+*.log
+coverage/
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+# Auto-generated doc exports (keep markdown as source of truth)
+docs/**/*.pdf
+docs/**/*.docx

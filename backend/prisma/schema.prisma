@@ -1,0 +1,1036 @@
+// Shadows of the Shogun — Prisma schema
+// Covers all core game entities per spec §99.
+// Server-authoritative: all mutable game state lives here (spec §98).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum PlayerRole {
+  PLAYER
+  MODERATOR
+  ADMIN
+}
+
+enum EnvironmentTier {
+  DEVELOPMENT
+  STAGING
+  PRODUCTION
+}
+
+enum Season {
+  SPRING
+  SUMMER
+  AUTUMN
+  WINTER
+}
+
+enum ResourceType {
+  RICE
+  WOOD
+  STONE
+  IRON
+  CHARCOAL
+  CATALYST // Industrial-only resource, unlocked at Industrial 1
+}
+
+enum CurrencyType {
+  JADE       // premium / paid
+  HONOUR     // F2P earnable
+  FEAR       // earned from combat
+  CORRUPTION // negative currency
+}
+
+enum TroopClass {
+  SAMURAI_GUARD
+  YUMI_ARCHERS
+  KOMAINU_RIDERS
+}
+
+enum HeroRarity {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum MarchState {
+  IDLE
+  GATHERING
+  MARCHING
+  IN_COMBAT
+  RETURNING
+}
+
+enum BuildingState {
+  IDLE
+  UPGRADING
+  PRODUCING
+}
+
+enum ProgressionTier {
+  STANDARD   // levels 1-30
+  INDUSTRIAL // Industrial 1-10
+}
+
+enum ConstructionState {
+  QUEUED
+  IN_PROGRESS
+  COMPLETE
+  CANCELLED
+}
+
+enum BattleType {
+  PVE
+  PVP
+  SIEGE
+  RALLY
+}
+
+enum MailType {
+  SYSTEM
+  PLAYER
+  BATTLE_REPORT
+  REWARD
+  ALLIANCE
+}
+
+enum PurchaseStatus {
+  PENDING
+  VALIDATED
+  GRANTED
+  FAILED
+  REFUNDED
+}
+
+enum ModerationStatus {
+  OPEN
+  INVESTIGATING
+  ACTION_TAKEN
+  DISMISSED
+}
+
+// ---------------------------------------------------------------------------
+// Accounts, players, sessions, servers
+// ---------------------------------------------------------------------------
+
+model Account {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  role         PlayerRole @default(PLAYER)
+  banned       Boolean   @default(false)
+  banReason    String?
+  lastLoginAt  DateTime?
+  players      Player[]
+  sessions     Session[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Server {
+  id          String       @id @default(uuid())
+  name        String
+  region      String
+  environment EnvironmentTier @default(PRODUCTION)
+  ageInDays   Int          @default(0)
+  openedAt    DateTime     @default(now())
+  players     Player[]
+  state       ServerState?
+  seasons     Season_[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model ServerState {
+  id                 String   @id @default(uuid())
+  serverId           String   @unique
+  server             Server   @relation(fields: [serverId], references: [id])
+  activeSeasonIndex  Int      @default(0)
+  industrialUnlocked Boolean  @default(false)
+  currentNaturalSeason Season @default(SPRING)
+  lastTickAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// Named Season_ to avoid clash with the Season enum.
+model Season_ {
+  id             String   @id @default(uuid())
+  serverId       String
+  server         Server   @relation(fields: [serverId], references: [id])
+  index          Int      // 0..12
+  name           String
+  industrialCap  Int      @default(0) // max industrial level allowed this season
+  startsAt       DateTime
+  endsAt         DateTime
+  active         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([serverId, index])
+}
+
+model Player {
+  id                String   @id @default(uuid())
+  accountId         String
+  account           Account  @relation(fields: [accountId], references: [id])
+  serverId          String
+  server            Server   @relation(fields: [serverId], references: [id])
+  displayName       String
+  level             Int      @default(1) // 1-30 standard
+  tier              ProgressionTier @default(STANDARD)
+  industrialLevel   Int      @default(0) // 0 = not ascended, 1-10 industrial
+  power             BigInt   @default(0)
+  vipLevel          Int      @default(0)
+  online            Boolean  @default(false)
+
+  settlement        Settlement?
+  troops            PlayerTroops[]
+  trainingJobs      TrainingJob[]
+  heroes            PlayerHero[]
+  pets              PlayerPet[]
+  civilians         PlayerCivilian[]
+  buildings         PlayerBuilding[]
+  constructionJobs  ConstructionJob[]
+  marches           March[]
+  currencyBalances  CurrencyBalance[]
+  currencyTx        CurrencyTransaction[]
+  inventory         InventoryItem[]
+  purchases         PurchaseTransaction[]
+  mails             Mail[]           @relation("MailRecipient")
+  sentMails         Mail[]           @relation("MailSender")
+  eventProgress     EventProgress[]
+  clanMembership    ClanMember?
+  battleParticipants BattleParticipant[]
+  moderationCases   ModerationCase[]
+  analyticsEvents   AnalyticsEvent[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([serverId])
+  @@index([accountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  accountId    String
+  account      Account  @relation(fields: [accountId], references: [id])
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  revoked      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model FeatureFlag {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  description String?
+  enabled     Boolean  @default(false)
+  rolloutPct  Int      @default(0) // 0-100
+  environment EnvironmentTier @default(DEVELOPMENT)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Settlement & buildings
+// ---------------------------------------------------------------------------
+
+model Settlement {
+  id              String   @id @default(uuid())
+  playerId        String   @unique
+  player          Player   @relation(fields: [playerId], references: [id])
+  name            String   @default("New Settlement")
+  tenshuLevel     Int      @default(1) // main keep level
+  worldTileId     String?  @unique
+  worldTile       WorldTile? @relation(fields: [worldTileId], references: [id])
+  resourceStates  ResourceStock[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Per-settlement resource stock (data-driven, one row per resource type).
+model ResourceStock {
+  id           String     @id @default(uuid())
+  settlementId String
+  settlement   Settlement @relation(fields: [settlementId], references: [id])
+  resource     ResourceType
+  amount       BigInt     @default(0)
+  capacity     BigInt     @default(1000000)
+  productionPerHour Float  @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([settlementId, resource])
+}
+
+model BuildingDefinition {
+  id             String   @id @default(uuid())
+  key            String   @unique // e.g. "tenshu", "barracks"
+  name           String
+  category       String   // MILITARY, ECONOMY, RESEARCH, SUPPORT, SEASONAL
+  maxLevel       Int      @default(30)
+  producesResource ResourceType?
+  baseProduction Float    @default(0)
+  requiredForAscension Boolean @default(false)
+  playerBuildings PlayerBuilding[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PlayerBuilding {
+  id            String   @id @default(uuid())
+  playerId      String
+  player        Player   @relation(fields: [playerId], references: [id])
+  definitionId  String
+  definition    BuildingDefinition @relation(fields: [definitionId], references: [id])
+  level         Int      @default(1)
+  state         BuildingState @default(IDLE)
+  slotX         Int      @default(0)
+  slotY         Int      @default(0)
+  industrialUpgrade IndustrialUpgrade?
+  constructionJobs  ConstructionJob[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+// Industrial sub-stage tracking (spec §12, §15).
+// Only completed full Industrial levels are public; sub-stages are private.
+model IndustrialUpgrade {
+  id               String   @id @default(uuid())
+  playerBuildingId String   @unique
+  playerBuilding   PlayerBuilding @relation(fields: [playerBuildingId], references: [id])
+  majorLevel       Int      @default(1) // 1-10 (the "X" in X.Y)
+  subStage         Int      @default(0) // 0-5 (the "Y" in X.Y); private until 5 completes
+  publicLevel      Int      @default(1) // only updated when subStage rolls to 0 of next major
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ConstructionJob {
+  id            String   @id @default(uuid())
+  playerId      String
+  player        Player   @relation(fields: [playerId], references: [id])
+  playerBuildingId String?
+  playerBuilding PlayerBuilding? @relation(fields: [playerBuildingId], references: [id])
+  targetLevel   Int
+  state         ConstructionState @default(QUEUED)
+  startedAt     DateTime?
+  finishesAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+// Industrial upgrade cost/config table (data-driven).
+model IndustrialUpgradeDefinition {
+  id           String   @id @default(uuid())
+  majorLevel   Int
+  subStage     Int
+  catalystCost BigInt   @default(0)
+  durationSec  Int      @default(0)
+  powerGain    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([majorLevel, subStage])
+}
+
+// ---------------------------------------------------------------------------
+// Civilians
+// ---------------------------------------------------------------------------
+
+model CivilianDefinition {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  role        String   // FARMER, BLACKSMITH, MERCHANT, etc.
+  bonusType   String?
+  bonusValue  Float    @default(0)
+  players     PlayerCivilian[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PlayerCivilian {
+  id           String   @id @default(uuid())
+  playerId     String
+  player       Player   @relation(fields: [playerId], references: [id])
+  definitionId String
+  definition   CivilianDefinition @relation(fields: [definitionId], references: [id])
+  assignedBuildingId String?
+  level        Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+// ---------------------------------------------------------------------------
+// Heroes & pets
+// ---------------------------------------------------------------------------
+
+model HeroDefinition {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  rarity      HeroRarity @default(COMMON)
+  troopAffinity TroopClass?
+  baseAttack  Int      @default(0)
+  baseDefense Int      @default(0)
+  marchSkillBonus Float @default(0) // % march-speed contribution
+  skills      HeroSkill[]
+  players     PlayerHero[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model HeroSkill {
+  id           String   @id @default(uuid())
+  definitionId String
+  definition   HeroDefinition @relation(fields: [definitionId], references: [id])
+  name         String
+  description  String?
+  maxLevel     Int      @default(5)
+  effectType   String
+  effectValue  Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model PlayerHero {
+  id           String   @id @default(uuid())
+  playerId     String
+  player       Player   @relation(fields: [playerId], references: [id])
+  definitionId String
+  definition   HeroDefinition @relation(fields: [definitionId], references: [id])
+  level        Int      @default(1)
+  stars        Int      @default(1)
+  experience   Int      @default(0)
+  equippedItemIds String[] @default([])
+  relationshipsA HeroRelationship[] @relation("HeroA")
+  relationshipsB HeroRelationship[] @relation("HeroB")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+model HeroRelationship {
+  id          String   @id @default(uuid())
+  heroAId     String
+  heroA       PlayerHero @relation("HeroA", fields: [heroAId], references: [id])
+  heroBId     String
+  heroB       PlayerHero @relation("HeroB", fields: [heroBId], references: [id])
+  type        String   // ALLY, RIVAL, BOND
+  affinity    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([heroAId, heroBId])
+}
+
+model PetDefinition {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  name         String
+  rarity       HeroRarity @default(COMMON)
+  abilityType  String?
+  abilityValue Float    @default(0)
+  evolutionMax Int      @default(3)
+  players      PlayerPet[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model PlayerPet {
+  id           String   @id @default(uuid())
+  playerId     String
+  player       Player   @relation(fields: [playerId], references: [id])
+  definitionId String
+  definition   PetDefinition @relation(fields: [definitionId], references: [id])
+  level        Int      @default(1)
+  evolution    Int      @default(0)
+  hunger       Int      @default(100)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+// ---------------------------------------------------------------------------
+// Troops & training
+// ---------------------------------------------------------------------------
+
+model TroopDefinition {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  troopClass  TroopClass
+  tier        Int      @default(1)
+  attack      Int      @default(0)
+  defense     Int      @default(0)
+  health      Int      @default(0)
+  speed       Float    @default(100)
+  playerTroops PlayerTroops[]
+  trainingJobs TrainingJob[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PlayerTroops {
+  id           String   @id @default(uuid())
+  playerId     String
+  player       Player   @relation(fields: [playerId], references: [id])
+  definitionId String
+  definition   TroopDefinition @relation(fields: [definitionId], references: [id])
+  count        Int      @default(0)
+  wounded      Int      @default(0) // in hospital
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([playerId, definitionId])
+}
+
+model TrainingJob {
+  id           String   @id @default(uuid())
+  playerId     String
+  player       Player   @relation(fields: [playerId], references: [id])
+  definitionId String
+  definition   TroopDefinition @relation(fields: [definitionId], references: [id])
+  quantity     Int
+  state        ConstructionState @default(QUEUED)
+  startedAt    DateTime?
+  finishesAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+// ---------------------------------------------------------------------------
+// Marches & world map
+// ---------------------------------------------------------------------------
+
+model March {
+  id           String   @id @default(uuid())
+  playerId     String
+  player       Player   @relation(fields: [playerId], references: [id])
+  state        MarchState @default(IDLE)
+  originX      Int
+  originY      Int
+  targetX      Int
+  targetY      Int
+  speed        Float    @default(100)
+  distance     Float    @default(0)
+  departedAt   DateTime?
+  arrivesAt    DateTime?
+  path         MarchPath?
+  participants MarchParticipant[]
+  rallyId      String?
+  rally        Rally?   @relation(fields: [rallyId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+model MarchPath {
+  id        String   @id @default(uuid())
+  marchId   String   @unique
+  march     March    @relation(fields: [marchId], references: [id])
+  waypoints Json     // ordered list of {x,y}
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MarchParticipant {
+  id           String   @id @default(uuid())
+  marchId      String
+  march        March    @relation(fields: [marchId], references: [id])
+  troopClass   TroopClass
+  count        Int
+  heroId       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Rally {
+  id           String   @id @default(uuid())
+  leaderPlayerId String
+  targetX      Int
+  targetY      Int
+  startsAt     DateTime
+  launchesAt   DateTime
+  marches      March[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model WorldTile {
+  id          String   @id @default(uuid())
+  serverId    String
+  x           Int
+  y           Int
+  terrain     String   @default("PLAIN")
+  settlement  Settlement?
+  worldObject WorldObject?
+  resourceNode ResourceNode?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([serverId, x, y])
+}
+
+model WorldObject {
+  id          String   @id @default(uuid())
+  worldTileId String   @unique
+  worldTile   WorldTile @relation(fields: [worldTileId], references: [id])
+  type        String   // RUIN, SHRINE, PASS, etc.
+  data        Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ResourceNode {
+  id          String   @id @default(uuid())
+  worldTileId String   @unique
+  worldTile   WorldTile @relation(fields: [worldTileId], references: [id])
+  resource    ResourceType
+  richness    Int      @default(1)
+  remaining   BigInt   @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model EnemyGroup {
+  id          String   @id @default(uuid())
+  serverId    String
+  x           Int
+  y           Int
+  level       Int      @default(1)
+  troopClass  TroopClass?
+  power       BigInt   @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Combat
+// ---------------------------------------------------------------------------
+
+model Battle {
+  id           String   @id @default(uuid())
+  serverId     String
+  type         BattleType
+  x            Int
+  y            Int
+  resolvedAt   DateTime?
+  winnerPlayerId String?
+  participants BattleParticipant[]
+  report       BattleReport?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model BattleParticipant {
+  id           String   @id @default(uuid())
+  battleId     String
+  battle       Battle   @relation(fields: [battleId], references: [id])
+  playerId     String?
+  player       Player?  @relation(fields: [playerId], references: [id])
+  side         String   // ATTACKER, DEFENDER
+  samuraiCount Int      @default(0)
+  yumiCount    Int      @default(0)
+  komainuCount Int      @default(0)
+  powerRating  BigInt   @default(0)
+  losses       Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model BattleReport {
+  id          String   @id @default(uuid())
+  battleId    String   @unique
+  battle      Battle   @relation(fields: [battleId], references: [id])
+  summary     Json
+  fearGained  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Clans
+// ---------------------------------------------------------------------------
+
+model Clan {
+  id          String   @id @default(uuid())
+  serverId    String
+  name        String
+  tag         String
+  description String?
+  power       BigInt   @default(0)
+  members     ClanMember[]
+  roles       ClanRole[]
+  technologies ClanTechnology[]
+  buildings   ClanBuilding[]
+  territories ClanTerritory[]
+  agreementsA DiplomaticAgreement[] @relation("ClanA")
+  agreementsB DiplomaticAgreement[] @relation("ClanB")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([serverId, tag])
+}
+
+model ClanRole {
+  id          String   @id @default(uuid())
+  clanId      String
+  clan        Clan     @relation(fields: [clanId], references: [id])
+  name        String
+  permissions String[] @default([])
+  members     ClanMember[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ClanMember {
+  id          String   @id @default(uuid())
+  clanId      String
+  clan        Clan     @relation(fields: [clanId], references: [id])
+  playerId    String   @unique
+  player      Player   @relation(fields: [playerId], references: [id])
+  roleId      String?
+  role        ClanRole? @relation(fields: [roleId], references: [id])
+  contribution BigInt  @default(0)
+  joinedAt    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clanId])
+}
+
+model ClanTechnology {
+  id          String   @id @default(uuid())
+  clanId      String
+  clan        Clan     @relation(fields: [clanId], references: [id])
+  key         String
+  level       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([clanId, key])
+}
+
+model ClanBuilding {
+  id          String   @id @default(uuid())
+  clanId      String
+  clan        Clan     @relation(fields: [clanId], references: [id])
+  type        String
+  level       Int      @default(1)
+  x           Int
+  y           Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ClanTerritory {
+  id          String   @id @default(uuid())
+  clanId      String
+  clan        Clan     @relation(fields: [clanId], references: [id])
+  centerX     Int
+  centerY     Int
+  radius      Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DiplomaticAgreement {
+  id          String   @id @default(uuid())
+  clanAId     String
+  clanA       Clan     @relation("ClanA", fields: [clanAId], references: [id])
+  clanBId     String
+  clanB       Clan     @relation("ClanB", fields: [clanBId], references: [id])
+  type        String   // ALLIANCE, NAP, WAR
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([clanAId, clanBId, type])
+}
+
+// ---------------------------------------------------------------------------
+// Inventory, currencies, economy ledger
+// ---------------------------------------------------------------------------
+
+model ItemDefinition {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  category    String
+  stackable   Boolean  @default(true)
+  data        Json?
+  items       InventoryItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model InventoryItem {
+  id           String   @id @default(uuid())
+  playerId     String
+  player       Player   @relation(fields: [playerId], references: [id])
+  definitionId String
+  definition   ItemDefinition @relation(fields: [definitionId], references: [id])
+  quantity     Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+model CurrencyBalance {
+  id        String   @id @default(uuid())
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id])
+  currency  CurrencyType
+  amount    BigInt   @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([playerId, currency])
+}
+
+model CurrencyTransaction {
+  id        String   @id @default(uuid())
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id])
+  currency  CurrencyType
+  delta     BigInt
+  reason    String
+  refId     String?  // idempotency reference (e.g. purchase id)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([playerId])
+  @@index([refId])
+}
+
+// ---------------------------------------------------------------------------
+// Store, purchases, monetisation
+// ---------------------------------------------------------------------------
+
+model CatalogProduct {
+  id          String   @id @default(uuid())
+  sku         String   @unique
+  name        String
+  description String?
+  priceUsdCents Int    @default(0)
+  jadeGranted Int      @default(0)
+  contents    Json?    // additional entitlements
+  active      Boolean  @default(true)
+  offers      StoreOffer[]
+  purchases   PurchaseTransaction[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model StoreOffer {
+  id          String   @id @default(uuid())
+  productId   String
+  product     CatalogProduct @relation(fields: [productId], references: [id])
+  discountId  String?
+  discount    DiscountCampaign? @relation(fields: [discountId], references: [id])
+  startsAt    DateTime
+  endsAt      DateTime
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DiscountCampaign {
+  id          String   @id @default(uuid())
+  name        String
+  percentOff  Int      @default(0)
+  startsAt    DateTime
+  endsAt      DateTime
+  offers      StoreOffer[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PurchaseTransaction {
+  id            String   @id @default(uuid())
+  playerId      String
+  player        Player   @relation(fields: [playerId], references: [id])
+  productId     String
+  product       CatalogProduct @relation(fields: [productId], references: [id])
+  platform      String   // ios, android, web
+  platformTxId  String   @unique // idempotency key from store
+  status        PurchaseStatus @default(PENDING)
+  priceUsdCents Int      @default(0)
+  validatedAt   DateTime?
+  grantedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+model RewardCode {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  contents    Json
+  maxRedemptions Int   @default(1)
+  redemptions Int      @default(0)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Mail, events, leaderboards
+// ---------------------------------------------------------------------------
+
+model Mail {
+  id          String   @id @default(uuid())
+  type        MailType
+  recipientId String
+  recipient   Player   @relation("MailRecipient", fields: [recipientId], references: [id])
+  senderId    String?
+  sender      Player?  @relation("MailSender", fields: [senderId], references: [id])
+  subject     String
+  body        String
+  attachments Json?    // reward attachments
+  read        Boolean  @default(false)
+  claimed     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([recipientId])
+}
+
+model EventDefinition {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime
+  scoringRules Json
+  rewards     Json?
+  progress    EventProgress[]
+  leaderboards Leaderboard[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model EventProgress {
+  id          String   @id @default(uuid())
+  eventId     String
+  event       EventDefinition @relation(fields: [eventId], references: [id])
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id])
+  score       BigInt   @default(0)
+  claimedTiers Int[]   @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([eventId, playerId])
+}
+
+model Leaderboard {
+  id          String   @id @default(uuid())
+  eventId     String?
+  event       EventDefinition? @relation(fields: [eventId], references: [id])
+  scope       String   // GLOBAL, CLAN, EVENT
+  entries     Json     // ranked [{playerId, score, rank}]
+  refreshedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Moderation, admin, analytics
+// ---------------------------------------------------------------------------
+
+model ModerationCase {
+  id          String   @id @default(uuid())
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id])
+  reason      String
+  status      ModerationStatus @default(OPEN)
+  assignedAdminId String?
+  resolution  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+model AdminUser {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  displayName String
+  role        String   @default("SUPPORT") // SUPPORT, GM, SUPERADMIN
+  active      Boolean  @default(true)
+  permissions AdminPermission[]
+  auditLogs   AdminAuditLog[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AdminPermission {
+  id          String   @id @default(uuid())
+  adminUserId String
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+  key         String   // e.g. "player.ban", "economy.override"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([adminUserId, key])
+}
+
+model AdminAuditLog {
+  id          String   @id @default(uuid())
+  adminUserId String
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+  action      String
+  targetType  String
+  targetId    String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([adminUserId])
+}
+
+model AnalyticsEvent {
+  id          String   @id @default(uuid())
+  playerId    String?
+  player      Player?  @relation(fields: [playerId], references: [id])
+  name        String
+  properties  Json?
+  sessionId   String?
+  environment EnvironmentTier @default(PRODUCTION)
+  createdAt   DateTime @default(now())
+
+  @@index([name])
+  @@index([playerId])
+}
