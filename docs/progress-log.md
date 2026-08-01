@@ -381,5 +381,68 @@ See `docs/decisions/` for full ADRs:
 
 ---
 
-**Last Updated:** August 1, 2026 (Phase 4 Complete)  
+**Last Updated:** August 1, 2026 (Backend Audit & Improvement Pass)  
 **Maintained By:** AI Builder (per Spec §4.6 backlog requirement)
+
+---
+
+## Backend Audit & Improvement Pass ✅ Complete
+
+**Timeline:** August 1, 2026  
+**Branch:** `chore/backend-audit-improvements`  
+**Deployment:** https://728065aeb.abacusai.cloud (systemd service `shogun-backend`, port 3000)
+
+A comprehensive read-through and hardening pass across the whole backend, run
+against the live PostgreSQL database and deployed service.
+
+### Audit findings (verified)
+- **Tests:** Full suite green at start (72/72) and end (77/77 after new tests).
+- **Live content API:** All `GET /api/content/*` endpoints return `200`. (The
+  Season Pass ladder is served under `/api/content/store` and the new
+  `/api/season-pass`, so no separate `/content/season-pass` route is needed.)
+- **Prisma schema:** Confirmed comprehensive coverage of content types
+  (HeroDefinition, TroopDefinition, BuildingDefinition, PetDefinition, etc.).
+  Added a new `SeasonPassProgress` model for per-player pass state.
+- **Auth:** JWT access tokens expire in 15m; refresh handled by 30-day
+  DB-backed `Session` rows with revoke-on-logout. Solid; left as-is.
+- **Economy:** Production ticks already run inside a Prisma `$transaction`.
+- **March/Combat:** Deterministic, pure, server-authoritative class-counter
+  math — verified correct, left as-is.
+- **Progression:** Industrial Ascension is building-level gated (no separate
+  player-XP curve in the content package), so nothing was mismatched.
+- **TODO/FIXME:** None present in `src/`.
+
+### Critical bug fixed 🐛
+- **BigInt serialization 500** — every endpoint returning a `BigInt` field
+  (`Player.power`, currency/resource balances) crashed with *"Do not know how
+  to serialize a BigInt"*. This broke `POST /auth/register`, `POST /auth/login`
+  and all player reads. Fixed globally with a `BigInt.prototype.toJSON`
+  serializer in `main.ts` (BigInt → string). Verified live: register/login and
+  profile now return `200`.
+
+### Improvements implemented
+- **CORS** (`main.ts`): `enableCors` with an allow-list containing the deployed
+  domain plus a `CORS_ORIGINS` env override; verified via an OPTIONS preflight.
+- **Player profile** — `GET /api/players/:id/profile`: aggregated identity,
+  progression, currency balances, settlement + resource summary and roster
+  counts (heroes/pets/troops/buildings/marches).
+- **Season Pass** (`/api/season-pass`): definition (from `shogun-content`),
+  per-player progress with derived current/claimable tiers, `POST .../points`,
+  `POST .../unlock-premium`, and idempotent `POST .../claim` that credits
+  currency rewards atomically inside a `$transaction` and records a
+  `CurrencyTransaction`. Backed by the new `SeasonPassProgress` model.
+- **Leaderboard skeleton** (`/api/leaderboards`): live power ranking from the
+  `Player` table, stored-snapshot reads by scope, and a `rebuild/power` hook
+  that materialises a `Leaderboard` snapshot.
+- **Economy hardening**: `spend()` rewritten from read-then-write to a single
+  race-safe conditional `updateMany` (`WHERE amount >= cost`), so concurrent
+  spends can never drive a balance negative.
+
+### Tests & verification
+- Added `test/season-pass.service.spec.ts` (5 pure tier-math tests).
+- **77/77 tests pass.** End-to-end flow verified against the live DB:
+  register → profile → add points → claim tier (currency credited, reflected in
+  profile) → double-claim rejected → unreached-tier rejected. Test accounts
+  cleaned up afterwards.
+- Schema change applied to the live DB via `prisma db push`; service rebuilt
+  and restarted; new endpoints and CORS confirmed live.

@@ -87,17 +87,28 @@ export class EconomyService {
     return this.prisma.$transaction(updates);
   }
 
-  /** Spend resources atomically; throws if insufficient. */
+  /**
+   * Spend resources atomically; throws if insufficient.
+   *
+   * Uses a single conditional `updateMany` (WHERE amount >= cost) so two
+   * concurrent spends can never drive a balance negative — the second one
+   * matches zero rows and is rejected. This is the race-safe pattern for a
+   * server-authoritative economy (spec §98).
+   */
   async spend(settlementId: string, resource: ResourceType, amount: number) {
-    const stock = await this.prisma.resourceStock.findUnique({
-      where: { settlementId_resource: { settlementId, resource } },
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error('Spend amount must be a positive number');
+    }
+    const cost = BigInt(Math.ceil(amount));
+    const result = await this.prisma.resourceStock.updateMany({
+      where: { settlementId, resource, amount: { gte: cost } },
+      data: { amount: { decrement: cost } },
     });
-    if (!stock || Number(stock.amount) < amount) {
+    if (result.count === 0) {
       throw new Error(`Insufficient ${resource}`);
     }
-    return this.prisma.resourceStock.update({
-      where: { id: stock.id },
-      data: { amount: BigInt(Number(stock.amount) - amount) },
+    return this.prisma.resourceStock.findUnique({
+      where: { settlementId_resource: { settlementId, resource } },
     });
   }
 }

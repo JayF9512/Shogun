@@ -22,6 +22,7 @@ import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
 import { ContentModule } from './content/content.module';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -49,6 +50,7 @@ import { HealthController } from './health.controller';
     AnalyticsModule,
     FeatureFlagsModule,
     ContentModule,
+    LeaderboardModule,
   ],
 })
 export class AppModule {}

@@ -210,6 +210,7 @@ model Player {
   mails             Mail[]           @relation("MailRecipient")
   sentMails         Mail[]           @relation("MailSender")
   eventProgress     EventProgress[]
+  seasonPassProgress SeasonPassProgress[]
   clanMembership    ClanMember?
   battleParticipants BattleParticipant[]
   moderationCases   ModerationCase[]
@@ -964,6 +965,26 @@ model Leaderboard {
   refreshedAt DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Season Pass progress (per-player track state, spec §71)
+// ---------------------------------------------------------------------------
+
+model SeasonPassProgress {
+  id            String   @id @default(uuid())
+  playerId      String
+  player        Player   @relation(fields: [playerId], references: [id])
+  seasonKey     String   // e.g. "season_zero"
+  points        Int      @default(0)
+  premium       Boolean  @default(false) // premium track unlocked (paid pass)
+  claimedFree   Int[]    @default([]) // tier numbers claimed on the free track
+  claimedPremium Int[]   @default([]) // tier numbers claimed on the premium track
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([playerId, seasonKey])
+  @@index([seasonKey])
 }
 
 // ---------------------------------------------------------------------------
