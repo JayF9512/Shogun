@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { PlayerRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto, GuestDto, BindDto } from './dto/auth.dto';
@@ -42,19 +43,38 @@ export class AuthService {
     return refreshToken;
   }
 
+  /**
+   * Returns true when the given email is the configured owner super-admin.
+   * Comparison is case-insensitive and trimmed. Empty OWNER_EMAIL disables it.
+   */
+  private isOwnerEmail(email: string): boolean {
+    const owner = (process.env.OWNER_EMAIL || '').toLowerCase().trim();
+    return owner.length > 0 && email.toLowerCase().trim() === owner;
+  }
+
+  /** New players receive a 10-day newcomer protection shield. */
+  static readonly SHIELD_DAYS = 10;
+  private newShieldEndsAt(): Date {
+    return new Date(Date.now() + AuthService.SHIELD_DAYS * 24 * 60 * 60 * 1000);
+  }
+
   async register(dto: RegisterDto) {
     const existing = await this.prisma.account.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Email already registered');
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    // The configured owner email automatically becomes the super-admin (OWNER).
+    const role: PlayerRole = this.isOwnerEmail(dto.email) ? 'OWNER' : 'PLAYER';
     const account = await this.prisma.account.create({
       data: {
         email: dto.email,
         passwordHash,
+        role,
         players: {
           create: {
             serverId: dto.serverId,
             displayName: dto.displayName,
+            shieldEndsAt: this.newShieldEndsAt(),
           },
         },
       },
@@ -96,7 +116,7 @@ export class AuthService {
       : await this.defaultServer();
     if (!server) throw new NotFoundException('Server not found');
 
-    // Attach to an open state if one exists (State 391 seeded by default).
+    // Attach to the lowest-numbered open state (State 1 by default).
     let stateId: string | undefined;
     if (dto.stateNumber != null) {
       const state = await this.prisma.state.findUnique({ where: { number: Number(dto.stateNumber) } });
@@ -125,7 +145,14 @@ export class AuthService {
             email,
             passwordHash,
             players: {
-              create: { serverId: server.id, stateId, displayName, isGuest: true, bindCode },
+              create: {
+                serverId: server.id,
+                stateId,
+                displayName,
+                isGuest: true,
+                bindCode,
+                shieldEndsAt: this.newShieldEndsAt(),
+              },
             },
           },
           include: { players: true },
@@ -218,7 +245,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, meta?: { userAgent?: string; ip?: string }) {
-    const account = await this.prisma.account.findUnique({
+    let account = await this.prisma.account.findUnique({
       where: { email: dto.email },
       include: { players: true },
     });
@@ -228,10 +255,15 @@ export class AuthService {
     const ok = await bcrypt.compare(dto.password, account.passwordHash);
     if (!ok) throw new UnauthorizedException('Invalid credentials');
 
-    await this.prisma.account.update({
+    // Auto-promote the configured owner email to OWNER on login. This covers
+    // owners who registered before OWNER_EMAIL was set.
+    const shouldBeOwner = this.isOwnerEmail(account.email) && account.role !== 'OWNER';
+    const updated = await this.prisma.account.update({
       where: { id: account.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date(), ...(shouldBeOwner ? { role: 'OWNER' as PlayerRole } : {}) },
+      include: { players: true },
     });
+    account = updated;
 
     const accessToken = this.signAccessToken(account);
     const refreshToken = await this.issueSession(account.id, meta);

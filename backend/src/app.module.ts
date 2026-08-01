@@ -24,6 +24,8 @@ import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
 import { ContentModule } from './content/content.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { StatesModule } from './states/states.module';
+import { TutorialModule } from './tutorial/tutorial.module';
+import { MapModule } from './map/map.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -53,6 +55,8 @@ import { HealthController } from './health.controller';
     ContentModule,
     LeaderboardModule,
     StatesModule,
+    TutorialModule,
+    MapModule,
   ],
 })
 export class AppModule {}

@@ -161,18 +161,33 @@ async function main() {
     }
   }
 
-  // --- State / realm (Phase 6 live-server system) ---
-  // The launch realm players join by default; open so guests can attach.
-  await prisma.state.upsert({
-    where: { number: 391 },
-    update: { isOpen: true },
+  // --- State (Phase 6 live-server system) ---
+  // State 1 is the single launch state players join by default. Subsequent
+  // states open automatically only once State N reaches its openThreshold
+  // (see StatesService.autoOpenNextStates). Open so guests can attach.
+  const stateOne = await prisma.state.upsert({
+    where: { number: 1 },
+    update: { isOpen: true, playerCap: 2000, openThreshold: 1900 },
     create: {
-      name: 'State 391',
-      number: 391,
+      name: 'State 1',
+      number: 1,
       isOpen: true,
-      playerCap: 10000,
+      playerCap: 2000,
+      openThreshold: 1900,
     },
   });
+
+  // Migrate any players from the legacy seed state (State 391) or any other
+  // state onto State 1, then remove leftover empty legacy states. This is
+  // idempotent: on a fresh DB there is nothing to move.
+  const migrated = await prisma.player.updateMany({
+    where: { OR: [{ stateId: null }, { NOT: { stateId: stateOne.id } }] },
+    data: { stateId: stateOne.id },
+  });
+  if (migrated.count > 0) {
+    console.log(`Migrated ${migrated.count} player(s) to State 1.`);
+  }
+  await prisma.state.deleteMany({ where: { NOT: { number: 1 } } });
 
   // --- NPC clans (populate the clan browser at launch) ---
   const npcClans = [

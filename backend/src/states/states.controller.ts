@@ -6,23 +6,22 @@ import {
   Param,
   Req,
   UseGuards,
-  ForbiddenException,
 } from '@nestjs/common';
 import { StatesService } from './states.service';
 import { CreateStateDto, RequestMigrationDto } from './dto/states.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @Controller('states')
 export class StatesController {
   constructor(private readonly service: StatesService) {}
 
-  /** Create a state (admin only). */
+  /** Create a state (ADMIN or OWNER only). */
   @Post()
-  @UseGuards(JwtAuthGuard)
-  create(@Body() dto: CreateStateDto, @Req() req: any) {
-    if (req.user.role !== 'ADMIN') {
-      throw new ForbiddenException('Admin role required');
-    }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  create(@Body() dto: CreateStateDto) {
     return this.service.create(dto);
   }
 
