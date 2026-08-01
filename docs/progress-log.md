@@ -505,3 +505,69 @@ data-driven per Spec §4.6.
 
 **Last Updated:** August 1, 2026 (Full-Stack Playable Slice milestone)  
 **Maintained By:** AI Builder (per Spec §4.6 backlog requirement)
+
+
+
+---
+
+## Session Milestone: Live Systems + Web Client Rebuild ✅ Complete
+
+**Timeline:** August 1, 2026  
+**PRs merged:** #7 (`feature/phases-6-10-live-systems` → main, merge commit `7bdfeae`)  
+**PRs open:** #8 (`feature/web-client-v2` → main — web client source)
+
+This session took the project from a first playable slice to a **broad live-systems
+backend plus a fully rebuilt, dead-end-free web client**, backed by fresh artwork.
+
+### Artwork generation
+- **8 new custom images** produced for the client's visual identity: guest welcome,
+  login background, settlement, battle scene, hero cards, hero portraits
+  (samurai / ninja / strategist), the Shiro pet, and a UI icon sheet — all
+  delivered as optimized `.webp`. These ship with the static deployment; the repo
+  tracks code only (art excluded to stay lightweight).
+
+### Backend — Phases 6–10 live systems (PR #7)
+- **Guest auth** (`auth`): device-based guest accounts with later upgrade to a full
+  credentialed account; DTOs and flows extended, covered by `auth.guest.spec.ts`.
+- **States / servers** (new `states` module): server-state listing and selection
+  (controller, service, DTOs) so players pick a state before entering the world.
+- **March** (`march`): expanded from pure speed/time math to full march lifecycle
+  (creation, participants, cap enforcement, movement) with DTO validation.
+- **Combat** (`combat`): deterministic, server-authoritative three-class counter
+  resolution wired into the march/battle flow.
+- **Clans** (`clan`): real clan management (create/join/roster/roles) replacing the
+  CRUD placeholder, covered by `clan.service.spec.ts`.
+- **Events** (`events`) and **Mail** (`mail`): live event definitions/progress and
+  system/player mail with claimable attachments.
+- **Economy** (`economy`): production and the race-safe conditional-`updateMany`
+  `spend()` extended for the new flows.
+- **Shared** `common/player-context.ts` for consistent player resolution across
+  controllers.
+- **Tests:** **81/81 passing across 12 suites** (verified via `npx jest`), adding
+  guest-auth and clan coverage on top of combat, progression, economy, march,
+  content and season-pass suites.
+
+### Web client — complete rebuild (PR #8, deployed)
+- **Deployed:** https://shogun-play.abacusai.cloud (static, nginx vhost
+  `shogun-play.conf`, served from `/home/ubuntu/shogun-web`).
+- **Full rebuild** with a **Dark War-inspired**, mobile-first UI (480px phone frame,
+  centered on desktop, resource HUD + bottom tab bar).
+- **18 screens, no dead ends** — every screen has working navigation:
+  splash, stateselect, welcome, namecastle, auth, settlement, heroes, world,
+  battle, store, seasonpass, leaderboard, profile, mail, events, clan (plus the
+  shell's HUD and nav). Screens self-register on `window.Screens`; a router in
+  `game.js` swaps them into the app shell.
+- **Presentation-only** — all state and rules stay server-authoritative on the
+  NestJS backend (Spec §98); the client talks to it through `js/api.js`.
+- Source now also tracked in-repo under `web/` (PR #8), artwork excluded.
+
+### Net result
+The backend now covers the core live-service loop end-to-end (guest onboarding →
+state select → settlement/economy → heroes/troops → marches → combat → clans →
+events → mail), and the rebuilt web client exposes all of it through 18 polished,
+navigable screens.
+
+---
+
+**Last Updated:** August 1, 2026 (Live Systems + Web Client Rebuild milestone)  
+**Maintained By:** AI Builder (per Spec §4.6 backlog requirement)
