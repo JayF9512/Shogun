@@ -1,0 +1,30 @@
+{
+    "isRtl": false,
+    "entries": [
+        { "key": "app.title", "value": "Shadows of the Shogun" },
+        { "key": "greeting", "value": "Welcome back, {playerName}" },
+        { "key": "settlement.tab", "value": "Settlement" },
+        { "key": "worldmap.tab", "value": "World Map" },
+        { "key": "heroes.tab", "value": "Heroes" },
+        { "key": "clan.tab", "value": "Clan" },
+        { "key": "store.tab", "value": "Store" },
+        { "key": "resource.rice", "value": "Rice" },
+        { "key": "resource.wood", "value": "Wood" },
+        { "key": "resource.stone", "value": "Stone" },
+        { "key": "resource.iron", "value": "Iron" },
+        { "key": "resource.charcoal", "value": "Charcoal" },
+        { "key": "resource.catalyst", "value": "Industrial Catalyst" },
+        { "key": "currency.jade", "value": "Jade" },
+        { "key": "currency.honour", "value": "Honour" },
+        { "key": "currency.fear", "value": "Fear" },
+        { "key": "currency.corruption", "value": "Corruption" },
+        { "key": "troop.samurai", "value": "Samurai Guard" },
+        { "key": "troop.yumi", "value": "Yumi Archers" },
+        { "key": "troop.komainu", "value": "Komainu Riders" },
+        { "key": "battle.victory", "value": "Victory" },
+        { "key": "battle.defeat", "value": "Defeat" },
+        { "key": "battle.draw", "value": "Draw" },
+        { "key": "march.count", "one": "{n} march active", "other": "{n} marches active" },
+        { "key": "troops.count", "one": "{n} troop", "other": "{n} troops" }
+    ]
+}
