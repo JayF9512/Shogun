@@ -233,11 +233,47 @@ This log tracks major milestones, implementation notes, and known issues per the
 
 ---
 
-## Phase 5: Season Zero Production 🔄 Next
+## Phase 5: Season Zero Production 🔄 In Progress
 
-**Planned Start:** TBD  
-**Estimated Duration:** 8-12 weeks  
-**Status:** Planning
+**Started:** Aug 1, 2026
+**Branch:** `feature/phase-5-season-zero`
+**Status:** Content foundation complete; systems/art in progress
+
+### Completed this iteration — Season Zero content foundation
+
+Built `content/` (`shogun-content`), a standalone, **validated** package that is
+the single source of truth for launch content (spec §4.6). See `docs/decisions/004-content-package.md`.
+
+- ✅ **12 launch heroes** (spec §39/§41/§71) — each with 4 skills + ultimate +
+  army skill, spanning all three troop affinities and the hero-class list.
+- ✅ **3 starter pets** (Shiro/Momo/Taro, spec §42) — Shiro free-obtainable,
+  White Fox evolution branches per spec §43.
+- ✅ **10 troop tiers × 3 classes** (spec §30) via a data-driven stat curve.
+- ✅ **Full launch building catalogue** (spec §33) with data-driven L1–30
+  cost/time/production curves (`buildingCostAtLevel`), ascension flags per §10.1.
+- ✅ **4 launch regions** (spec §45).
+- ✅ **18-stage "Crimson Eclipse" campaign** (6 chapters, spec §71) mapped to the
+  Levels 1–30 bands; finale repairs the seal.
+- ✅ **Rally config** with visible-representative caps (spec §57/§59).
+- ✅ **Store catalogue + 30-tier season pass** (spec §88/§71), free + paid tracks.
+- ✅ **10-step tutorial flow** triggering real server systems (spec §9).
+- ✅ **zod schema + cross-reference validation** — 16 Jest tests passing.
+- ✅ **Backend seed** now consumes the package (validates then upserts);
+  verified end-to-end against a real PostgreSQL instance and idempotent
+  (12 heroes / 72 skills / 3 pets / 30 troops / 32 buildings / 11 products / 50
+  industrial rows).
+- ✅ **Backend `ContentModule`** serves the catalogue read-only at
+  `/api/content/*`; 7 new service tests (backend now 72/72 passing).
+
+### Remaining Phase 5 scope
+- [ ] Unity scenes/prefabs/art for Season Zero screens (client presentation).
+- [ ] Campaign PvE encounter runtime wiring (combat service integration).
+- [ ] Tutorial flow runtime orchestration on the client.
+- [ ] Clan territory capture mechanics.
+- [ ] Developer Mode tooling for Season Zero content.
+- [ ] Admin panel screens to grant/remove Season Zero content.
+
+### Original scope (reference)
 
 ### Scope
 - Implement full Levels 1-30 building progression

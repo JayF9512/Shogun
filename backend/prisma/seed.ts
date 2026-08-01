@@ -1,41 +1,150 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, HeroRarity, TroopClass, ResourceType } from '@prisma/client';
+import {
+  seasonZeroContent,
+  validateContent,
+  buildingCostAtLevel,
+} from 'shogun-content';
 
 const prisma = new PrismaClient();
 
 /**
- * Minimal data-driven seed: a server, base building/troop definitions and the
- * industrial upgrade cost table. Balancing values are data, not code (spec §4.6).
+ * Data-driven seed: pulls all launch content from the `shogun-content` package
+ * (single source of truth, spec §4.6) and upserts it into the database.
+ * Nothing is hard-coded here — designers change content in one validated place.
  */
 async function main() {
+  // Fail fast if content is invalid so we never seed a broken catalogue.
+  const validation = validateContent();
+  if (!validation.ok) {
+    console.error('Content validation failed — aborting seed:');
+    validation.errors.forEach((e) => console.error('  - ' + e));
+    process.exit(1);
+  }
+
   const server = await prisma.server.upsert({
     where: { id: 'seed-server' },
     update: {},
-    create: { id: 'seed-server', name: 'Season Zero', region: 'eu', environment: 'DEVELOPMENT' },
+    create: { id: 'seed-server', name: seasonZeroContent.season.name, region: 'eu', environment: 'DEVELOPMENT' },
   });
 
-  const buildings = [
-    { key: 'tenshu', name: 'Tenshu', category: 'SUPPORT', requiredForAscension: true },
-    { key: 'research_hall', name: 'Research Hall', category: 'RESEARCH', requiredForAscension: true },
-    { key: 'hospital', name: 'Hospital', category: 'SUPPORT', requiredForAscension: true },
-    { key: 'barracks', name: 'Barracks', category: 'MILITARY', requiredForAscension: true },
-    { key: 'rice_paddy', name: 'Rice Paddy', category: 'ECONOMY', producesResource: 'RICE' as const, baseProduction: 100 },
-    { key: 'lumber_camp', name: 'Lumber Camp', category: 'ECONOMY', producesResource: 'WOOD' as const, baseProduction: 80 },
-    { key: 'catalyst_forge', name: 'Catalyst Forge', category: 'ECONOMY', producesResource: 'CATALYST' as const, baseProduction: 20 },
-  ];
-  for (const b of buildings) {
-    await prisma.buildingDefinition.upsert({ where: { key: b.key }, update: b, create: b });
+  // --- Buildings ---
+  for (const b of seasonZeroContent.buildings) {
+    await prisma.buildingDefinition.upsert({
+      where: { key: b.key },
+      update: {
+        name: b.name,
+        category: b.category,
+        maxLevel: b.maxLevel,
+        producesResource: (b.producesResource as ResourceType) ?? null,
+        baseProduction: b.baseProduction,
+        requiredForAscension: b.requiredForAscension,
+      },
+      create: {
+        key: b.key,
+        name: b.name,
+        category: b.category,
+        maxLevel: b.maxLevel,
+        producesResource: (b.producesResource as ResourceType) ?? null,
+        baseProduction: b.baseProduction,
+        requiredForAscension: b.requiredForAscension,
+      },
+    });
   }
 
-  const troops = [
-    { key: 'samurai_t1', name: 'Ashigaru Samurai', troopClass: 'SAMURAI_GUARD' as const, attack: 10, defense: 12, health: 100 },
-    { key: 'yumi_t1', name: 'Yumi Levy', troopClass: 'YUMI_ARCHERS' as const, attack: 12, defense: 6, health: 80 },
-    { key: 'komainu_t1', name: 'Komainu Outrider', troopClass: 'KOMAINU_RIDERS' as const, attack: 11, defense: 8, health: 90, speed: 130 },
-  ];
-  for (const t of troops) {
-    await prisma.troopDefinition.upsert({ where: { key: t.key }, update: t, create: t });
+  // --- Troops ---
+  for (const t of seasonZeroContent.troops) {
+    const data = {
+      name: t.name,
+      troopClass: t.troopClass as TroopClass,
+      tier: t.tier,
+      attack: t.attack,
+      defense: t.defense,
+      health: t.health,
+      speed: t.speed,
+    };
+    await prisma.troopDefinition.upsert({ where: { key: t.key }, update: data, create: { key: t.key, ...data } });
   }
 
-  // Industrial upgrade table: 10 major levels x 5 sub-stages.
+  // --- Heroes + skills ---
+  for (const h of seasonZeroContent.heroes) {
+    const hero = await prisma.heroDefinition.upsert({
+      where: { key: h.key },
+      update: {
+        name: h.name,
+        rarity: h.rarity as HeroRarity,
+        troopAffinity: h.troopAffinity as TroopClass,
+        baseAttack: h.baseAttack,
+        baseDefense: h.baseDefense,
+        marchSkillBonus: h.marchSkillBonus,
+      },
+      create: {
+        key: h.key,
+        name: h.name,
+        rarity: h.rarity as HeroRarity,
+        troopAffinity: h.troopAffinity as TroopClass,
+        baseAttack: h.baseAttack,
+        baseDefense: h.baseDefense,
+        marchSkillBonus: h.marchSkillBonus,
+      },
+    });
+    // Refresh skills (delete + recreate keeps them in sync with content).
+    await prisma.heroSkill.deleteMany({ where: { definitionId: hero.id } });
+    const allSkills = [...h.skills, h.ultimate, h.armySkill];
+    for (const s of allSkills) {
+      await prisma.heroSkill.create({
+        data: {
+          definitionId: hero.id,
+          name: s.name,
+          description: s.description,
+          maxLevel: s.maxLevel,
+          effectType: s.effectType,
+          effectValue: s.effectValue,
+        },
+      });
+    }
+  }
+
+  // --- Pets ---
+  for (const p of seasonZeroContent.pets) {
+    const data = {
+      name: p.name,
+      rarity: p.rarity as HeroRarity,
+      abilityType: p.passiveBonusType,
+      abilityValue: p.passiveBonusValue,
+      evolutionMax: p.evolutions.length,
+    };
+    await prisma.petDefinition.upsert({ where: { key: p.key }, update: data, create: { key: p.key, ...data } });
+  }
+
+  // --- Store catalogue ---
+  for (const s of seasonZeroContent.storeProducts) {
+    const data = {
+      name: s.name,
+      description: s.category,
+      priceUsdCents: s.priceUsdCents,
+      jadeGranted: s.jadeGranted,
+      contents: (s.contents ?? {}) as object,
+      active: s.active,
+    };
+    await prisma.catalogProduct.upsert({ where: { sku: s.sku }, update: data, create: { sku: s.sku, ...data } });
+  }
+
+  // --- Season pass as an event definition (scoring/rewards are data) ---
+  await prisma.eventDefinition.upsert({
+    where: { key: 'crimson_eclipse_pass' },
+    update: {},
+    create: {
+      key: 'crimson_eclipse_pass',
+      name: `${seasonZeroContent.season.name} Pass`,
+      description: 'Season Zero battle pass',
+      startsAt: new Date(),
+      endsAt: new Date(Date.now() + 90 * 24 * 3600 * 1000),
+      scoringRules: { pointsPerActivity: 100 } as object,
+      rewards: seasonZeroContent.seasonPass as unknown as object,
+    },
+  });
+
+  // --- Industrial upgrade table: 10 major levels x 5 sub-stages ---
   for (let major = 1; major <= 10; major++) {
     for (let sub = 1; sub <= 5; sub++) {
       await prisma.industrialUpgradeDefinition.upsert({
@@ -52,7 +161,13 @@ async function main() {
     }
   }
 
-  console.log('Seed complete for server', server.name);
+  // Sanity: log a sample derived cost so designers can eyeball the curve.
+  const tenshu = seasonZeroContent.buildings.find((b) => b.key === 'tenshu')!;
+  console.log('Sample Tenshu L30 cost:', buildingCostAtLevel(tenshu, 30));
+  console.log(
+    `Seed complete for "${server.name}":`,
+    JSON.stringify(validation.counts),
+  );
 }
 
 main()
