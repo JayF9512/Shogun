@@ -1,5 +1,7 @@
-// DTOs for the events module. Extend with class-validator decorated fields
-// as concrete endpoints are hardened. Requests are validated globally via
-// ValidationPipe (whitelist + transform).
-export class CreateEventsDto {}
-export class UpdateEventsDto {}
+import { IsInt, Min } from 'class-validator';
+
+export class AddPointsDto {
+  @IsInt()
+  @Min(1)
+  points: number;
+}

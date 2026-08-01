@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveCurrentPlayer, serializeBigInts } from '../common/player-context';
 
 /**
  * Economy: resource production ticks and transactions.
@@ -28,9 +29,103 @@ export const BASE_PRODUCTION: Record<ResourceType, number> = {
   CATALYST: 0,
 };
 
+export const ALL_RESOURCES: ResourceType[] = [
+  'RICE',
+  'WOOD',
+  'STONE',
+  'IRON',
+  'CHARCOAL',
+  'CATALYST',
+];
+
+/** Minimum seconds between player-triggered ticks (rate limit: 1/min). */
+export const TICK_COOLDOWN_SECONDS = 60;
+
 @Injectable()
 export class EconomyService {
+  // Per-player last-tick timestamps for rate limiting (single-instance server).
+  private readonly lastPlayerTick = new Map<string, number>();
+
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Ensure the player has a settlement with a stock row for every resource.
+   * Guests start bare, so we lazily provision one on first economy access.
+   */
+  private async ensureSettlement(playerId: string, industrialLevel = 0) {
+    let settlement = await this.prisma.settlement.findUnique({ where: { playerId } });
+    if (!settlement) {
+      settlement = await this.prisma.settlement.create({ data: { playerId } });
+    }
+    const existing = await this.prisma.resourceStock.findMany({
+      where: { settlementId: settlement.id },
+    });
+    const have = new Set(existing.map((s) => s.resource));
+    const missing = ALL_RESOURCES.filter((r) => !have.has(r));
+    if (missing.length) {
+      await this.prisma.resourceStock.createMany({
+        data: missing.map((resource) => ({
+          settlementId: settlement!.id,
+          resource,
+          amount: BigInt(0),
+          productionPerHour: EconomyService.productionPerHour(resource, 1, industrialLevel),
+        })),
+      });
+    }
+    return settlement;
+  }
+
+  /**
+   * Player-scoped production tick (spec §98): called on login/resume. Rate
+   * limited to once per minute per player. Applies elapsed production to every
+   * resource stock and returns the new balances.
+   */
+  async playerTick(accountId: string) {
+    const player = await resolveCurrentPlayer(this.prisma, accountId);
+    const now = Date.now();
+    const last = this.lastPlayerTick.get(player.id) ?? 0;
+    if (now - last < TICK_COOLDOWN_SECONDS * 1000) {
+      const retryIn = Math.ceil((TICK_COOLDOWN_SECONDS * 1000 - (now - last)) / 1000);
+      throw new BadRequestException(`Tick rate limit reached. Retry in ${retryIn}s`);
+    }
+
+    const settlement = await this.ensureSettlement(player.id, player.industrialLevel);
+    await this.tickSettlement(settlement.id);
+    this.lastPlayerTick.set(player.id, now);
+
+    const stocks = await this.prisma.resourceStock.findMany({
+      where: { settlementId: settlement.id },
+    });
+    return serializeBigInts({
+      settlementId: settlement.id,
+      tickedAt: new Date().toISOString(),
+      resources: stocks.map((s) => ({
+        resource: s.resource,
+        amount: s.amount,
+        capacity: s.capacity,
+        productionPerHour: s.productionPerHour,
+      })),
+    });
+  }
+
+  /** All resource balances + production rates for the current player. */
+  async playerResources(accountId: string) {
+    const player = await resolveCurrentPlayer(this.prisma, accountId);
+    const settlement = await this.ensureSettlement(player.id, player.industrialLevel);
+    const stocks = await this.prisma.resourceStock.findMany({
+      where: { settlementId: settlement.id },
+      orderBy: { resource: 'asc' },
+    });
+    return serializeBigInts({
+      settlementId: settlement.id,
+      resources: stocks.map((s) => ({
+        resource: s.resource,
+        amount: s.amount,
+        capacity: s.capacity,
+        productionPerHour: s.productionPerHour,
+      })),
+    });
+  }
 
   /** Per-level multiplier: +10% per level above 1. */
   static levelMultiplier(buildingLevel: number): number {
