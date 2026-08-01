@@ -1,0 +1,16 @@
+[Unit]
+Description=Shadows of the Shogun NestJS backend
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/home/ubuntu
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/github_repos/Shogun/backend
+EnvironmentFile=/home/ubuntu/github_repos/Shogun/backend/.env
+ExecStart=/usr/bin/node dist/src/main.js
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

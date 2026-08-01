@@ -15,6 +15,12 @@ export class PlayerController {
     return this.service.findOne(id);
   }
 
+  /** Rich aggregated profile: progression, currencies, settlement, roster counts. */
+  @Get(':id/profile')
+  getProfile(@Param('id') id: string) {
+    return this.service.getProfile(id);
+  }
+
   @Post()
   create(@Body() body: any) {
     return this.service.create(body);
