@@ -17,6 +17,11 @@ export class CreateStateDto {
   @IsInt()
   @Min(1)
   playerCap?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  openThreshold?: number;
 }
 
 export class RequestMigrationDto {

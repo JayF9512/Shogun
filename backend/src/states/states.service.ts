@@ -19,20 +19,61 @@ export const MIGRATION_RANGE = 20;
 export class StatesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Default per-state capacity and the threshold that opens the next state. */
+  static readonly DEFAULT_PLAYER_CAP = 2000;
+  static readonly DEFAULT_OPEN_THRESHOLD = 1900;
+
   async create(dto: CreateStateDto) {
     const existing = await this.prisma.state.findUnique({ where: { number: dto.number } });
     if (existing) throw new ConflictException(`State ${dto.number} already exists`);
-    return this.prisma.state.create({
+    const state = await this.prisma.state.create({
       data: {
         name: dto.name,
         number: dto.number,
         isOpen: dto.isOpen ?? true,
-        playerCap: dto.playerCap ?? 10000,
+        playerCap: dto.playerCap ?? StatesService.DEFAULT_PLAYER_CAP,
+        openThreshold: dto.openThreshold ?? StatesService.DEFAULT_OPEN_THRESHOLD,
       },
     });
+    await this.autoOpenNextStates();
+    return state;
+  }
+
+  /**
+   * Progressive state opening: a state N+1 only opens once state N has reached
+   * its openThreshold. When the highest existing state crosses its threshold,
+   * the next consecutive state is created (open); any pre-existing but closed
+   * next state is opened. Idempotent and safe to call on every list/join.
+   */
+  async autoOpenNextStates() {
+    const states = await this.prisma.state.findMany({ orderBy: { number: 'asc' } });
+    if (states.length === 0) return;
+
+    for (const state of states) {
+      const count = await this.prisma.player.count({ where: { stateId: state.id } });
+      if (count < state.openThreshold) continue;
+
+      const nextNumber = state.number + 1;
+      const next = await this.prisma.state.findUnique({ where: { number: nextNumber } });
+      if (!next) {
+        await this.prisma.state.create({
+          data: {
+            name: `State ${nextNumber}`,
+            number: nextNumber,
+            isOpen: true,
+            playerCap: StatesService.DEFAULT_PLAYER_CAP,
+            openThreshold: StatesService.DEFAULT_OPEN_THRESHOLD,
+          },
+        });
+      } else if (!next.isOpen) {
+        await this.prisma.state.update({ where: { id: next.id }, data: { isOpen: true } });
+      }
+    }
   }
 
   async list() {
+    // Ensure progressive opening is up to date before returning the list.
+    await this.autoOpenNextStates();
     const states = await this.prisma.state.findMany({ orderBy: { number: 'asc' } });
     const withCounts = await Promise.all(
       states.map(async (s) => ({
@@ -40,7 +81,11 @@ export class StatesService {
         playerCount: await this.prisma.player.count({ where: { stateId: s.id } }),
       })),
     );
-    return withCounts.map((s) => ({ ...s, isFull: s.playerCount >= s.playerCap }));
+    return withCounts.map((s) => ({
+      ...s,
+      isFull: s.playerCount >= s.playerCap,
+      openProgress: Math.min(1, s.playerCount / s.openThreshold),
+    }));
   }
 
   async detail(id: string) {
@@ -72,6 +117,8 @@ export class StatesService {
       where: { id: player.id },
       data: { stateId },
     });
+    // Opening this state's successor may now be warranted.
+    await this.autoOpenNextStates();
     return serializeBigInts({ success: true, player: updated });
   }
 

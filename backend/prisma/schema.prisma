@@ -19,6 +19,7 @@ enum PlayerRole {
   PLAYER
   MODERATOR
   ADMIN
+  OWNER
 }
 
 enum EnvironmentTier {
@@ -163,16 +164,20 @@ model ServerState {
   updatedAt            DateTime @updatedAt
 }
 
-// Player-facing state/server (spec §6 — realm sharding). Distinct from the
-// internal `Server`/`ServerState` records: this is the numbered realm ("State
-// 391") players see, join and migrate between.
+// Player-facing State (spec §6 — state sharding). Distinct from the internal
+// `Server`/`ServerState` records: this is the numbered State ("State 1") that
+// players see, join and migrate between.
 model State {
   id        String   @id @default(uuid())
   name      String
-  number    Int      @unique // e.g. 391
+  number    Int      @unique // e.g. 1
   isOpen    Boolean  @default(true)
-  playerCap Int      @default(10000)
-  players   Player[]
+  playerCap Int      @default(2000)
+  // When the player count reaches this threshold, the next-numbered state is
+  // auto-opened (spec §6 realm progression). Configurable per state.
+  openThreshold  Int            @default(1900)
+  players        Player[]
+  mapCoordinates MapCoordinate[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -212,6 +217,11 @@ model Player {
   vipLevel        Int             @default(0)
   online          Boolean         @default(false)
 
+  // Newcomer shield (spec §7). New players get a protective shield; it ends at
+  // `shieldEndsAt` or is broken early (manually or by an aggressive action).
+  shieldEndsAt    DateTime?
+  shieldBroken    Boolean         @default(false)
+
   settlement         Settlement?
   troops             PlayerTroops[]
   trainingJobs       TrainingJob[]
@@ -233,6 +243,8 @@ model Player {
   battleParticipants BattleParticipant[]
   moderationCases    ModerationCase[]
   analyticsEvents    AnalyticsEvent[]
+  tutorialProgress   TutorialProgress?
+  mapCoordinates     MapCoordinate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1086,5 +1098,70 @@ model AnalyticsEvent {
   createdAt   DateTime        @default(now())
 
   @@index([name])
+  @@index([playerId])
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 additions: owner/admin audit log, tutorial progress, and the
+// per-State coordinate map used for castle placement, mines, and monsters.
+// ---------------------------------------------------------------------------
+
+// Immutable audit trail for every privileged (OWNER/ADMIN) mutation. Keyed by
+// the acting Account id + email so entries survive even if the account role
+// later changes. OWNER-only readable via GET /api/admin/log.
+model AdminLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  adminEmail String
+  action     String
+  targetId   String?
+  targetType String?
+  details    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// One row per player tracking their onboarding tutorial. Steps 0-12 map to
+// Tenshu (keep) levels; completed steps and unlocked features are stored as
+// JSON arrays so the step definitions can evolve without a migration.
+model TutorialProgress {
+  id                String   @id @default(uuid())
+  playerId          String   @unique
+  player            Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  currentStep       Int      @default(0)
+  completedSteps    Json     @default("[]")
+  unlockedFeatures  Json     @default("[]")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+// A single logical tile on a State's map. The map is a 1200x1200 logical grid.
+// objectType is one of PLAYER_CASTLE, MINE, MONSTER, STRUCTURE, EMPTY. When a
+// tile holds a player castle, playerId links back to the owning player.
+model MapCoordinate {
+  id         String   @id @default(uuid())
+  stateId    String
+  state      State    @relation(fields: [stateId], references: [id], onDelete: Cascade)
+  x          Int
+  y          Int
+  objectType String   @default("EMPTY")
+  objectId   String?
+  tier       Int      @default(0)
+  isOccupied Boolean  @default(false)
+  playerId   String?
+  player     Player?  @relation(fields: [playerId], references: [id])
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([stateId, x, y])
+  @@index([stateId])
+  @@index([objectType])
   @@index([playerId])
 }
