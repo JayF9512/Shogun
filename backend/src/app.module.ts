@@ -21,6 +21,7 @@ import { SeasonModule } from './season/season.module';
 import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
+import { ContentModule } from './content/content.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
     AdminModule,
     AnalyticsModule,
     FeatureFlagsModule,
+    ContentModule,
   ],
 })
 export class AppModule {}
