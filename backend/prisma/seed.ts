@@ -161,6 +161,38 @@ async function main() {
     }
   }
 
+  // --- State / realm (Phase 6 live-server system) ---
+  // The launch realm players join by default; open so guests can attach.
+  await prisma.state.upsert({
+    where: { number: 391 },
+    update: { isOpen: true },
+    create: {
+      name: 'State 391',
+      number: 391,
+      isOpen: true,
+      playerCap: 10000,
+    },
+  });
+
+  // --- NPC clans (populate the clan browser at launch) ---
+  const npcClans = [
+    { tag: 'BUSH', name: 'Bushido Vanguard', description: 'Honour above all.' },
+    { tag: 'RONIN', name: 'Wandering Ronin', description: 'Masterless blades for hire.' },
+    { tag: 'ONI', name: 'Oni Warband', description: 'Fear is our weapon.' },
+  ];
+  for (const c of npcClans) {
+    await prisma.clan.upsert({
+      where: { serverId_tag: { serverId: server.id, tag: c.tag } },
+      update: { name: c.name, description: c.description },
+      create: {
+        serverId: server.id,
+        tag: c.tag,
+        name: c.name,
+        description: c.description,
+      },
+    });
+  }
+
   // Sanity: log a sample derived cost so designers can eyeball the curve.
   const tenshu = seasonZeroContent.buildings.find((b) => b.key === 'tenshu')!;
   console.log('Sample Tenshu L30 cost:', buildingCostAtLevel(tenshu, 30));

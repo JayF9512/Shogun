@@ -1,32 +1,27 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Req, UseGuards } from '@nestjs/common';
 import { EventsService } from './events.service';
+import { AddPointsDto } from './dto/events.dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @Controller('events')
 export class EventsController {
   constructor(private readonly service: EventsService) {}
 
   @Get()
-  findAll(@Query('take') take?: string, @Query('skip') skip?: string) {
-    return this.service.findAll(take ? +take : 50, skip ? +skip : 0);
+  listActive() {
+    return this.service.listActive();
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  @UseGuards(JwtAuthGuard)
+  detail(@Param('id') id: string, @Req() req: any) {
+    return this.service.detail(id, req.user?.accountId);
   }
 
-  @Post()
-  create(@Body() body: any) {
-    return this.service.create(body);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() body: any) {
-    return this.service.update(id, body);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  /** Internal hook: add points to the current player's event progress. */
+  @Post(':id/add-points')
+  @UseGuards(JwtAuthGuard)
+  addPoints(@Param('id') id: string, @Body() dto: AddPointsDto, @Req() req: any) {
+    return this.service.addPoints(req.user.accountId, id, dto.points);
   }
 }

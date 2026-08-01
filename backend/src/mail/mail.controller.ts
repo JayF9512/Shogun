@@ -1,32 +1,41 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { MailService } from './mail.service';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @Controller('mail')
+@UseGuards(JwtAuthGuard)
 export class MailController {
   constructor(private readonly service: MailService) {}
 
+  /** GET /api/mail — current player's inbox (unread first). */
   @Get()
-  findAll(@Query('take') take?: string, @Query('skip') skip?: string) {
-    return this.service.findAll(take ? +take : 50, skip ? +skip : 0);
+  inbox(@Req() req: any) {
+    return this.service.inbox(req.user.accountId);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  /** POST /api/mail/:id/read — mark a mail as read. */
+  @Post(':id/read')
+  markRead(@Req() req: any, @Param('id') id: string) {
+    return this.service.markRead(req.user.accountId, id);
   }
 
-  @Post()
-  create(@Body() body: any) {
-    return this.service.create(body);
+  /** POST /api/mail/:id/claim — claim reward attachments (idempotent). */
+  @Post(':id/claim')
+  claim(@Req() req: any, @Param('id') id: string) {
+    return this.service.claim(req.user.accountId, id);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() body: any) {
-    return this.service.update(id, body);
-  }
-
+  /** DELETE /api/mail/:id — delete a mail. */
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Req() req: any, @Param('id') id: string) {
+    return this.service.remove(req.user.accountId, id);
   }
 }
