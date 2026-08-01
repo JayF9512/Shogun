@@ -1,125 +1,100 @@
-/* AUTH — login / register tabs, with guest-bind warning. */
-window.Screens.auth = {
-  hasNav: false,
-  render: function (root) {
-    root.innerHTML =
-      '<div class="screen-bg" style="background-image:url(assets/images/login-bg.webp)"></div>' +
-      '<div class="screen-inner" style="display:flex;flex-direction:column;min-height:100%">' +
-        '<div class="logo-mini" style="margin-top:6px">SHADOWS OF THE SHOGUN</div>' +
-        '<div style="flex:1"></div>' +
-        '<div class="panel">' +
-          '<div class="tabs">' +
-            '<div class="tab active" data-tab="login">LOGIN</div>' +
-            '<div class="tab" data-tab="register">REGISTER</div>' +
+/* auth.js — login, register, and guest account binding. */
+(function () {
+  'use strict';
+
+  Screens.auth = {
+    render: function (el, params) {
+      var mode = (params && params.mode) || (api.isGuest && api.isLoggedIn ? 'bind' : 'login');
+      var isBind = api.isGuest && api.isLoggedIn;
+
+      el.innerHTML =
+        '<div class="bg-cover" style="background-image:url(assets/images/login-bg.webp)"></div>' +
+        '<div class="bg-scrim"></div>' +
+        '<button class="back-btn" id="a-back">' + icon('back') + '</button>' +
+        '<div style="position:relative;z-index:2;padding:64px 22px 30px;min-height:100%;display:flex;flex-direction:column;justify-content:center">' +
+          '<div class="center" style="margin-bottom:16px">' +
+            '<div class="title-md" id="a-title">Welcome Back</div>' +
           '</div>' +
-          '<div id="auth-body"></div>' +
-        '</div>' +
-        '<button class="btn btn-ghost" id="a-guest" style="margin-top:14px">Play as Guest instead</button>' +
-        '<div style="flex:1"></div>' +
-      '</div>';
+          (isBind ? '' :
+            '<div class="tabs">' +
+              '<div class="tab' + (mode === 'login' ? ' active' : '') + '" data-m="login">Sign In</div>' +
+              '<div class="tab' + (mode === 'register' ? ' active' : '') + '" data-m="register">Register</div>' +
+            '</div>') +
+          '<div class="panel gold stack" id="a-form"></div>' +
+        '</div>';
 
-    var body = root.querySelector('#auth-body');
-    var tabs = root.querySelectorAll('[data-tab]');
-    Array.prototype.forEach.call(tabs, function (t) {
-      t.onclick = function () {
-        Array.prototype.forEach.call(tabs, function (x) { x.classList.remove('active'); });
-        t.classList.add('active');
-        renderTab(t.getAttribute('data-tab'));
-      };
-    });
-    renderTab('login');
+      el.querySelector('#a-back').onclick = function () { Router.back('welcome'); };
 
-    root.querySelector('#a-guest').onclick = function () {
-      if (api.isLoggedIn && api.isGuest) { Router.go('settlement'); return; }
-      UI.loading(true);
-      api.guest().then(function () { return Promise.all([Game.ensureContent(), Game.refreshResources().catch(function () {})]); })
-        .then(function () { UI.loading(false); Router.go('namecastle'); })
-        .catch(function (e) { UI.loading(false); UI.err(e); });
-    };
+      var self = this;
+      function form(m) {
+        var f = el.querySelector('#a-form');
+        var title = el.querySelector('#a-title');
+        var showName = (m === 'register' || m === 'bind');
+        title.textContent = m === 'register' ? 'Forge Your Legend' : (m === 'bind' ? 'Save Your Progress' : 'Welcome Back');
+        f.innerHTML =
+          (m === 'bind' ? '<p class="muted" style="font-size:13px">Bind an email to keep your domain forever. Your current progress is preserved.</p>' : '') +
+          (showName ? '<div class="field"><label>Commander Name</label><input id="a-name" maxlength="20" placeholder="At least 2 characters" value="' + esc(m === 'bind' ? Game.displayName() : '') + '"/></div>' : '') +
+          '<div class="field"><label>Email</label><input id="a-email" type="email" placeholder="you@example.com" autocomplete="email"/></div>' +
+          '<div class="field"><label>Password</label><input id="a-pass" type="password" placeholder="At least 8 characters" autocomplete="current-password"/></div>' +
+          '<div class="err-text" id="a-err"></div>' +
+          '<button class="btn" id="a-submit">' + (m === 'register' ? 'Create account' : (m === 'bind' ? 'Bind account' : 'Sign in')) + '</button>';
 
-    function renderTab(kind) {
-      if (kind === 'login') {
-        body.innerHTML =
-          '<div class="field"><label>Email</label><input class="input" id="l-email" type="email" placeholder="you@example.com" autocomplete="email" /></div>' +
-          '<div class="field"><label>Password</label><input class="input" id="l-pass" type="password" placeholder="••••••••" autocomplete="current-password" /></div>' +
-          '<div class="form-err" id="l-err"></div>' +
-          '<button class="btn btn-primary" id="l-go">ENTER THE STATE</button>';
-        body.querySelector('#l-go').onclick = doLogin;
-      } else {
-        body.innerHTML =
-          '<div class="field"><label>Warrior Name</label><input class="input" id="r-name" placeholder="Your display name" /></div>' +
-          '<div class="field"><label>Email</label><input class="input" id="r-email" type="email" placeholder="you@example.com" /></div>' +
-          '<div class="field"><label>Password</label><input class="input" id="r-pass" type="password" placeholder="Min. 8 characters" /></div>' +
-          '<div class="field"><label>Confirm Password</label><input class="input" id="r-pass2" type="password" placeholder="Repeat password" /></div>' +
-          '<div class="form-err" id="r-err"></div>' +
-          '<button class="btn btn-primary" id="r-go">CREATE ACCOUNT</button>';
-        body.querySelector('#r-go').onclick = doRegister;
+        f.querySelector('#a-submit').onclick = function () { self._submit(m, el); };
       }
-    }
 
-    function afterAuth() {
-      return Promise.all([Game.ensureContent(), Game.refreshProfile().catch(function () {}), Game.refreshResources().catch(function () {})])
-        .then(function () {
-          UI.loading(false);
-          UI.ok('Welcome back, ' + Game.displayName() + '!');
-          if (Game.profile && Game.profile.settlement) Router.go('settlement');
-          else Router.go('namecastle');
-        });
-    }
+      form(mode);
+      Array.prototype.forEach.call(el.querySelectorAll('.tab'), function (t) {
+        t.onclick = function () {
+          Array.prototype.forEach.call(el.querySelectorAll('.tab'), function (x) { x.classList.remove('active'); });
+          t.classList.add('active');
+          form(t.getAttribute('data-m'));
+        };
+      });
+    },
 
-    function doLogin() {
-      var email = body.querySelector('#l-email').value.trim();
-      var pass = body.querySelector('#l-pass').value;
-      var err = body.querySelector('#l-err');
-      if (!email || !pass) { err.textContent = 'Enter your email and password.'; return; }
+    _submit: function (mode, el) {
+      var email = (el.querySelector('#a-email') || {}).value || '';
+      var pass = (el.querySelector('#a-pass') || {}).value || '';
+      var nameEl = el.querySelector('#a-name');
+      var name = nameEl ? nameEl.value.trim() : '';
+      var err = el.querySelector('#a-err');
       err.textContent = '';
-      UI.loading(true);
-      api.login(email, pass).then(afterAuth).catch(function (e) { UI.loading(false); err.textContent = e.message; });
-    }
 
-    function doRegister() {
-      var name = body.querySelector('#r-name').value.trim();
-      var email = body.querySelector('#r-email').value.trim();
-      var pass = body.querySelector('#r-pass').value;
-      var pass2 = body.querySelector('#r-pass2').value;
-      var err = body.querySelector('#r-err');
-      if (name.length < 2) { err.textContent = 'Your warrior name needs at least 2 characters.'; return; }
-      if (!email) { err.textContent = 'Enter a valid email.'; return; }
+      email = email.trim();
+      if (!/.+@.+\..+/.test(email)) { err.textContent = 'Enter a valid email.'; return; }
       if (pass.length < 8) { err.textContent = 'Password must be at least 8 characters.'; return; }
-      if (pass !== pass2) { err.textContent = 'Passwords do not match.'; return; }
-      err.textContent = '';
+      if ((mode === 'register' || mode === 'bind') && name.length < 2) { err.textContent = 'Commander name must be at least 2 characters.'; return; }
 
-      // If a guest session exists, binding warning first (progress-link caveat).
-      if (api.isLoggedIn && api.isGuest) {
-        showBindWarning(email, pass, name, err);
-      } else {
-        UI.loading(true);
-        api.register(email, pass, name, localStorage.getItem('shogun_serverId') || 'seed-server')
-          .then(afterAuth).catch(function (e) { UI.loading(false); err.textContent = e.message; });
-      }
-    }
+      UI.loading(true);
+      var req;
+      if (mode === 'register') req = api.register(email, pass, name);
+      else if (mode === 'bind') req = api.bind(email, pass, name);
+      else req = api.login(email, pass);
 
-    function showBindWarning(email, pass, name, err) {
-      Modal({
-        title: '⚠️ Bind Your Account',
-        html:
-          '<p style="color:var(--text-dim);font-size:14px;line-height:1.6;margin:6px 0 18px">' +
-            'Binding will permanently link your current guest progress to <b style="color:var(--gold)">' + esc(email) + '</b>.' +
-            ' If you already have an account on a different state, your current progress will <b>not</b> transfer.</p>' +
-          '<button class="btn btn-primary" id="bind-yes">BIND MY ACCOUNT</button>' +
-          '<div style="height:10px"></div>' +
-          '<button class="btn btn-ghost" id="bind-no">Cancel</button>',
-        onMount: function (m) {
-          m.querySelector('#bind-no').onclick = closeModal;
-          m.querySelector('#bind-yes').onclick = function () {
-            closeModal(); UI.loading(true);
-            api.bind(email, pass, name).then(function () {
-              UI.ok('Account bound! Your progress is now saved.');
-              return afterAuth();
-            }).catch(function (e) { UI.loading(false); UI.err(e); });
-          };
+      req.then(function (data) {
+        if (mode === 'bind') {
+          localStorage.setItem('shogun_isGuest', '0');
+          UI.loading(false);
+          UI.ok('Account bound \u2014 your domain is now saved.');
+          Router.reset('profile');
+          return;
         }
+        api.saveSession(data);
+        Game.profile = data.player || null;
+        return Promise.all([
+          Game.ensureContent().catch(function () {}),
+          Game.refreshResources().catch(function () {}),
+          Game.refreshTutorial().catch(function () {})
+        ]).then(function () {
+          UI.loading(false);
+          Game.startPolling();
+          if (mode === 'register') Router.reset('namecastle');
+          else Router.reset('settlement');
+        });
+      }).catch(function (e) {
+        UI.loading(false);
+        err.textContent = api.friendly(e);
       });
     }
-  }
-};
+  };
+})();

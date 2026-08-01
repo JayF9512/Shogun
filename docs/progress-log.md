@@ -571,3 +571,55 @@ navigable screens.
 
 **Last Updated:** August 1, 2026 (Live Systems + Web Client Rebuild milestone)  
 **Maintained By:** AI Builder (per Spec §4.6 backlog requirement)
+
+
+
+---
+
+## Session Milestone: Stage 1 — State 1, Super-Admin, Shield, Tutorial & Map ✅ Complete
+
+**Timeline:** August 1, 2026  
+**Branch merged:** `feature/stage1-state1-fixes` → `main` (merge commit)  
+**Related open PR:** #8 (`feature/web-client-v2` → main — earlier web client source)
+
+This session merged the Stage 1 backend hardening work into `main`, refreshed the
+in-repo web client source to match the live deployment, and standardized
+environment configuration.
+
+### Backend — Stage 1 (merged into main)
+- **Owner super-admin role.** New `OWNER` role auto-assigned on register/login when
+  the account email matches `OWNER_EMAIL`. Added a `RolesGuard` + `@Roles()`
+  decorator and OWNER-only admin endpoints (`/admin/appoint`, `/admin/demote`,
+  `/admin/admins`, `/admin/log`). All mutating admin actions now write to a new
+  `AdminLog` audit table.
+- **Newcomer shield.** Players receive a 10-day `shieldEndsAt` on creation; added
+  `GET /players/me`, `POST /players/shield/break` (with confirm), and `shieldBroken`
+  tracking in the profile.
+- **Tutorial module.** New `tutorial` module (controller/service/DTO) for
+  server-driven onboarding step tracking.
+- **Coordinate map module.** New `map` module (controller/service/DTO) providing the
+  world coordinate grid used by marches and the world map.
+- **State 1 migration + terminology.** Prisma schema/seed updates for the State 1
+  launch data and consistent in-game terminology.
+- **Robustness fixes (from the live-integration pass):** global `BigInt.toJSON`
+  serialization fix in `main.ts` (was causing 500s on profile/register), and an
+  environment-aware **CORS** allow-list driven by `CORS_ORIGINS`.
+
+### Web client — source refreshed in repo
+- Refreshed `web/{index.html,css/,js/}` from the authoritative deployed source at
+  `/home/ubuntu/shogun-web` (live at **https://shogun-play.abacusai.cloud**).
+- Now **19 screens** — adds `prologue`, `troops`, and `admin` on top of the prior
+  set, plus `settlement3d.js`, `tutorial.js`, and `worldmap.js` helpers.
+- **Large artwork excluded from the repo.** Removed the committed
+  `web/assets/images/*.webp` and reference `*.jpg` binaries and added ignore rules;
+  artwork ships with the static deployment to keep the repo lightweight.
+
+### Environment configuration
+- Standardized `backend/.env.example` with all required variables: `DATABASE_URL`,
+  `JWT_SECRET`, `OWNER_EMAIL` (set to the project owner), and a new `CORS_ORIGINS`
+  entry (plus existing `NODE_ENV`/`PORT`/JWT expiry/`REDIS_URL`).
+
+---
+
+**Last Updated:** August 1, 2026 (Stage 1: State 1, Super-Admin, Shield, Tutorial & Map)  
+**Maintained By:** AI Builder (per Spec §4.6 backlog requirement)

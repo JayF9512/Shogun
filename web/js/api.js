@@ -1,9 +1,9 @@
 /* ============================================================
-   ApiClient — all backend communication for Shadows of the Shogun.
+   ApiClient — all backend communication.
    Live backend: https://728065aeb.abacusai.cloud/api
    ============================================================ */
 
-// Screen registry — must exist before any screen script runs (they load before main.js).
+// Screen registry must exist before any screen script runs (they load before main.js).
 window.Screens = window.Screens || {};
 
 (function () {
@@ -12,183 +12,161 @@ window.Screens = window.Screens || {};
   var API_BASE = 'https://728065aeb.abacusai.cloud/api';
   var LS = 'shogun_';
 
-  function ApiError(status, message, raw) {
-    this.status = status;
-    this.message = message || 'Something went wrong.';
-    this.raw = raw;
-  }
-  ApiError.prototype = Object.create(Error.prototype);
+  function ls(k) { return localStorage.getItem(LS + k); }
+  function setLs(k, v) { if (v == null) localStorage.removeItem(LS + k); else localStorage.setItem(LS + k, v); }
 
-  // Turn any backend error payload into one friendly sentence.
-  function friendly(status, body) {
-    var msg = body && body.message;
-    if (Array.isArray(msg)) msg = msg[0];
-    if (typeof msg !== 'string' || !msg) {
-      if (status === 401) msg = 'Your session expired. Please sign in again.';
-      else if (status === 403) msg = 'You are not allowed to do that.';
-      else if (status === 404) msg = 'That was not found.';
-      else if (status === 409) msg = 'That action conflicts with your current state.';
-      else if (status >= 500) msg = 'The game servers are busy. Please try again.';
-      else msg = 'Request failed. Please try again.';
-    }
-    // Capitalise + tidy validation style messages
-    msg = msg.charAt(0).toUpperCase() + msg.slice(1);
-    return msg;
-  }
+  function ApiError(status, message, raw) { this.status = status; this.message = message; this.raw = raw; }
+  ApiError.prototype = Object.create(Error.prototype);
 
   var Api = {
     base: API_BASE,
 
-    // ---------- token / identity storage ----------
-    get accessToken() { return localStorage.getItem(LS + 'accessToken') || ''; },
-    get refreshToken() { return localStorage.getItem(LS + 'refreshToken') || ''; },
-    get playerId() { return localStorage.getItem(LS + 'playerId') || ''; },
-    get stateId() { return localStorage.getItem(LS + 'stateId') || ''; },
-    get castleName() { return localStorage.getItem(LS + 'castleName') || ''; },
-    get isGuest() { return localStorage.getItem(LS + 'isGuest') === '1'; },
-    get isLoggedIn() { return !!this.accessToken && !!this.playerId; },
-
-    setCastle: function (name) { localStorage.setItem(LS + 'castleName', name); },
-    setState: function (id) { if (id) localStorage.setItem(LS + 'stateId', id); },
+    // ---- token / session accessors ----
+    get accessToken() { return ls('accessToken'); },
+    get refreshToken() { return ls('refreshToken'); },
+    get playerId() { return ls('playerId'); },
+    get stateId() { return ls('stateId'); },
+    get role() { return ls('role') || 'PLAYER'; },
+    get isGuest() { return ls('isGuest') === '1'; },
+    get isLoggedIn() { return !!ls('accessToken'); },
+    get castleName() { return ls('castleName'); },
+    get commander() { return ls('commander'); },
 
     saveSession: function (data) {
-      if (!data) return;
-      if (data.accessToken) localStorage.setItem(LS + 'accessToken', data.accessToken);
-      if (data.refreshToken) localStorage.setItem(LS + 'refreshToken', data.refreshToken);
-      var p = data.player || {};
-      if (p.id) localStorage.setItem(LS + 'playerId', p.id);
-      if (p.stateId) localStorage.setItem(LS + 'stateId', p.stateId);
-      if (p.serverId) localStorage.setItem(LS + 'serverId', p.serverId);
-      localStorage.setItem(LS + 'isGuest', p.isGuest ? '1' : '0');
-      if (p.displayName) localStorage.setItem(LS + 'displayName', p.displayName);
+      if (data.accessToken) setLs('accessToken', data.accessToken);
+      if (data.refreshToken) setLs('refreshToken', data.refreshToken);
+      var p = data.player || data;
+      if (p) {
+        if (p.id) setLs('playerId', p.id);
+        if (p.stateId) setLs('stateId', p.stateId);
+        if (p.displayName) setLs('displayName', p.displayName);
+        if (p.role) setLs('role', p.role);
+        if (typeof p.isGuest !== 'undefined') setLs('isGuest', p.isGuest ? '1' : '0');
+        if (p.bindCode) setLs('bindCode', p.bindCode);
+        if (p.shieldEndsAt) setLs('shieldEndsAt', p.shieldEndsAt);
+      }
     },
 
     clearSession: function () {
-      ['accessToken', 'refreshToken', 'playerId', 'stateId', 'serverId', 'isGuest', 'displayName']
-        .forEach(function (k) { localStorage.removeItem(LS + k); });
+      ['accessToken', 'refreshToken', 'playerId', 'displayName', 'role', 'isGuest', 'bindCode', 'shieldEndsAt'].forEach(function (k) { setLs(k, null); });
     },
 
-    // ---------- core request with auto token-refresh ----------
-    request: function (path, opts) {
+    // ---- core request with single silent refresh on 401 ----
+    request: function (method, path, body, opts) {
       opts = opts || {};
       var self = this;
       var headers = { 'Content-Type': 'application/json' };
-      if (opts.auth !== false && this.accessToken) headers['Authorization'] = 'Bearer ' + this.accessToken;
+      if (!opts.noAuth && this.accessToken) headers.Authorization = 'Bearer ' + this.accessToken;
 
-      var init = { method: opts.method || 'GET', headers: headers };
-      if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
+      var init = { method: method, headers: headers };
+      if (body != null) init.body = JSON.stringify(body);
 
       return fetch(API_BASE + path, init).then(function (res) {
-        // Attempt a single silent refresh + retry on 401
-        if (res.status === 401 && opts._retried !== true && self.refreshToken && opts.auth !== false) {
-          return self._doRefresh().then(function (ok) {
-            if (!ok) { self.clearSession(); throw new ApiError(401, 'Your session expired. Please sign in again.'); }
-            var o2 = Object.assign({}, opts, { _retried: true });
-            return self.request(path, o2);
+        if (res.status === 401 && !opts._retried && self.refreshToken) {
+          return self._refresh().then(function () {
+            return self.request(method, path, body, Object.assign({}, opts, { _retried: true }));
+          }).catch(function () {
+            self.clearSession();
+            throw new ApiError(401, 'Your session expired. Please sign in again.');
           });
         }
         return res.text().then(function (txt) {
           var data = null;
           try { data = txt ? JSON.parse(txt) : null; } catch (e) { data = txt; }
-          if (!res.ok) throw new ApiError(res.status, friendly(res.status, data), data);
+          if (!res.ok) {
+            var msg = (data && (data.message || data.error)) || ('Request failed (' + res.status + ')');
+            if (Array.isArray(msg)) msg = msg[0];
+            throw new ApiError(res.status, msg, data);
+          }
           return data;
         });
-      }, function () {
-        throw new ApiError(0, 'Cannot reach the game. Check your connection.');
       });
     },
 
-    _doRefresh: function () {
+    _refresh: function () {
       var self = this;
       return fetch(API_BASE + '/auth/refresh', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: this.refreshToken })
       }).then(function (r) {
-        if (!r.ok) return false;
-        return r.json().then(function (d) {
-          if (d && d.accessToken) { localStorage.setItem(LS + 'accessToken', d.accessToken); if (d.refreshToken) localStorage.setItem(LS + 'refreshToken', d.refreshToken); return true; }
-          return false;
-        });
-      }).catch(function () { return false; });
+        if (!r.ok) throw new Error('refresh failed');
+        return r.json();
+      }).then(function (d) { self.saveSession(d); return d; });
     },
 
-    // ---------- AUTH ----------
-    guest: function () {
-      var self = this;
-      return this.request('/auth/guest', { method: 'POST', body: {}, auth: false })
-        .then(function (d) { self.saveSession(d); return d; });
-    },
-    register: function (email, password, displayName, serverId) {
-      var self = this;
-      return this.request('/auth/register', { method: 'POST', auth: false,
-        body: { email: email, password: password, displayName: displayName, serverId: serverId || 'seed-server' } })
-        .then(function (d) { self.saveSession(d); return d; });
-    },
-    login: function (email, password) {
-      var self = this;
-      return this.request('/auth/login', { method: 'POST', auth: false, body: { email: email, password: password } })
-        .then(function (d) { self.saveSession(d); return d; });
-    },
-    bind: function (email, password, displayName) {
-      var body = { email: email, password: password };
-      if (displayName) body.displayName = displayName;
-      var self = this;
-      return this.request('/auth/bind', { method: 'POST', body: body }).then(function (d) {
-        localStorage.setItem(LS + 'isGuest', '0');
-        if (d && d.player) self.saveSession(d);
-        return d;
-      });
-    },
-    logout: function () {
-      var rt = this.refreshToken;
-      this.clearSession();
-      if (rt) return this.request('/auth/logout', { method: 'POST', auth: false, body: { refreshToken: rt } }).catch(function () {});
-      return Promise.resolve();
+    get: function (p, o) { return this.request('GET', p, null, o); },
+    post: function (p, b, o) { return this.request('POST', p, b, o); },
+
+    // ---- friendly error mapping ----
+    friendly: function (e) {
+      if (!e) return 'Something went wrong.';
+      if (e.status === 401) return 'Please sign in again.';
+      if (e.status === 403) return 'You do not have permission for that.';
+      if (e.status === 404) return 'Not found.';
+      if (e.status === 409) return e.message || 'That action conflicts with the current state.';
+      if (e.status >= 500) return 'The server had a problem. Try again shortly.';
+      return e.message || 'Something went wrong.';
     },
 
-    // ---------- STATES ----------
-    getStates: function () { return this.request('/states', { auth: false }); },
-    joinState: function (id) { return this.request('/states/' + id + '/join', { method: 'POST', body: {} }); },
+    // ================= AUTH =================
+    guest: function () { return this.post('/auth/guest', {}, { noAuth: true }); },
+    login: function (email, password) { return this.post('/auth/login', { email: email, password: password }, { noAuth: true }); },
+    register: function (email, password, displayName) {
+      return this.post('/auth/register', { email: email, password: password, displayName: displayName, serverId: 'seed-server' }, { noAuth: true });
+    },
+    bind: function (email, password, displayName) { return this.post('/auth/bind', { email: email, password: password, displayName: displayName }); },
+    me: function () { return this.get('/players/me'); },
 
-    // ---------- PLAYER ----------
-    getProfile: function (id) { return this.request('/players/' + (id || this.playerId) + '/profile'); },
+    // ================= STATES =================
+    getStates: function () { return this.get('/states', { noAuth: true }); },
+    joinState: function (id) { return this.post('/states/' + id + '/join', {}); },
 
-    // ---------- ECONOMY ----------
-    getResources: function () { return this.request('/economy/resources'); },
-    tick: function () { return this.request('/economy/tick', { method: 'POST', body: {} }); },
+    // ================= ECONOMY =================
+    getResources: function () { return this.get('/economy/resources'); },
+    tick: function () { return this.post('/economy/tick', {}); },
 
-    // ---------- CONTENT ----------
-    getHeroes: function () { return this.request('/content/heroes', { auth: false }); },
-    getTroops: function () { return this.request('/content/troops', { auth: false }); },
-    getBuildings: function () { return this.request('/content/buildings', { auth: false }); },
-    getPets: function () { return this.request('/content/pets', { auth: false }); },
-    getStore: function () { return this.request('/store', { auth: false }); },
-    getSeasonPass: function () { return this.request('/season-pass'); },
+    // ================= CONTENT =================
+    getHeroes: function () { return this.get('/content/heroes', { noAuth: true }); },
+    getTroops: function () { return this.get('/content/troops', { noAuth: true }); },
+    getBuildings: function () { return this.get('/content/buildings', { noAuth: true }); },
+    getPets: function () { return this.get('/content/pets', { noAuth: true }); },
 
-    // ---------- MARCH ----------
-    sendMarch: function (dto) { return this.request('/march', { method: 'POST', body: dto }); },
-    getMarches: function () { return this.request('/march'); },
-    recallMarch: function (id) { return this.request('/march/' + id + '/recall', { method: 'POST', body: {} }); },
+    // ================= TUTORIAL =================
+    getTutorial: function () { return this.get('/tutorial/progress'); },
+    completeStep: function (step, data) { return this.post('/tutorial/complete-step', { step: step, data: data || {} }); },
 
-    // ---------- COMBAT ----------
-    simulate: function (attacker, defender) { return this.request('/combat/simulate', { method: 'POST', auth: false, body: { attacker: attacker, defender: defender } }); },
+    // ================= MAP =================
+    getTiles: function (stateId, x, y, range) {
+      return this.get('/map/tiles?stateId=' + encodeURIComponent(stateId) + '&x=' + x + '&y=' + y + '&range=' + (range || 100));
+    },
+    placeCastle: function (x, y) { return this.post('/map/place-castle', { x: x, y: y }); },
+    teleport: function (x, y) { return this.post('/map/teleport', { x: x, y: y }); },
 
-    // ---------- CLANS ----------
-    getClans: function (q) { return this.request('/clans' + (q ? '?q=' + encodeURIComponent(q) : '')); },
-    createClan: function (dto) { return this.request('/clans', { method: 'POST', body: dto }); },
-    getClan: function (id) { return this.request('/clans/' + id); },
-    joinClan: function (id) { return this.request('/clans/' + id + '/join', { method: 'POST', body: {} }); },
+    // ================= MARCH / COMBAT =================
+    getMarches: function () { return this.get('/march'); },
+    march: function (payload) { return this.post('/march', payload); },
+    recall: function (id) { return this.post('/march/' + id + '/recall', {}); },
+    simulate: function (attacker, defender) { return this.post('/combat/simulate', { attacker: attacker, defender: defender }, { noAuth: true }); },
 
-    // ---------- EVENTS ----------
-    getEvents: function () { return this.request('/events'); },
+    // ================= STORE / PASS =================
+    getStore: function () { return this.get('/store'); },
+    getSeasonPass: function () { return this.get('/season-pass'); },
 
-    // ---------- MAIL ----------
-    getMail: function () { return this.request('/mail'); },
-    readMail: function (id) { return this.request('/mail/' + id + '/read', { method: 'POST', body: {} }); },
-    claimMail: function (id) { return this.request('/mail/' + id + '/claim', { method: 'POST', body: {} }); },
+    // ================= SOCIAL =================
+    getClans: function () { return this.get('/clans'); },
+    getClan: function (id) { return this.get('/clans/' + id); },
+    createClan: function (name, tag, description) { return this.post('/clans', { name: name, tag: tag, description: description }); },
+    joinClan: function (id) { return this.post('/clans/' + id + '/join', {}); },
+    getEvents: function () { return this.get('/events'); },
+    getMail: function () { return this.get('/mail'); },
+    readMail: function (id) { return this.post('/mail/' + id + '/read', {}); },
+    claimMail: function (id) { return this.post('/mail/' + id + '/claim', {}); },
+    getLeaderboards: function () { return this.get('/leaderboards'); },
 
-    // ---------- LEADERBOARD ----------
-    getLeaderboard: function () { return this.request('/leaderboards'); }
+    // ================= ADMIN =================
+    adminLog: function () { return this.get('/admin/log'); },
+    appointAdmin: function (email) { return this.post('/admin/appoint', { email: email }); },
+    demoteAdmin: function (email) { return this.post('/admin/demote', { email: email }); }
   };
 
   window.api = Api;

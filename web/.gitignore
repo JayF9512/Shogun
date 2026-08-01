@@ -16,3 +16,7 @@ target
 data/
 *.sqlite
 *.nfs*
+
+# Large artwork ships with the static deployment, not the repo
+assets/images/
+assets/ref*.jpg

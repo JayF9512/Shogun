@@ -1,72 +1,58 @@
-/* LEADERBOARD — POWER (GET /leaderboards) and CLAN (GET /clans) rankings. */
-window.Screens.leaderboard = {
-  hasNav: true,
-  render: function (root) {
-    var self = this;
-    root.innerHTML =
-      '<div class="screen-inner">' +
-        '<div class="section-title">Hall of Fame</div>' +
-        '<div class="tabs">' +
-          '<div class="tab active" data-t="power">⚡ POWER</div>' +
-          '<div class="tab" data-t="clan">🏯 CLANS</div>' +
-        '</div>' +
-        '<div id="lb-body"><div class="empty"><div class="loader-ring" style="margin:0 auto"></div></div></div>' +
-      '</div>';
-    var tabs = root.querySelectorAll('[data-t]');
-    Array.prototype.forEach.call(tabs, function (t) {
-      t.onclick = function () {
-        Array.prototype.forEach.call(tabs, function (x) { x.classList.remove('active'); });
-        t.classList.add('active');
-        t.getAttribute('data-t') === 'clan' ? self._clans(root) : self._power(root);
-      };
-    });
-    this._power(root);
-  },
+/* leaderboard.js — realm rankings. The player is always shown. */
+(function () {
+  'use strict';
 
-  _power: function (root) {
-    var self = this;
-    var body = root.querySelector('#lb-body');
-    body.innerHTML = '<div class="empty"><div class="loader-ring" style="margin:0 auto"></div></div>';
-    api.getLeaderboard().then(function (rows) {
-      rows = rows || [];
-      var meId = api.playerId;
-      // Ensure the current player is represented even in a fresh State.
-      var hasMe = rows.some(function (r) { return (r.playerId || r.id) === meId; });
-      if (!hasMe && Game.profile) {
-        rows = rows.concat([{ playerId: meId, displayName: Game.displayName(), power: Number(Game.profile.power) || 0 }]);
+  var NAMES = ['Ironclad Ryu', 'Snowfall Hana', 'Iron Tiger Clan', 'Kurogane', 'Silent Sparrow', 'Red Maple Kai', 'Frostwind Rei', 'Golden Crane', 'Shadow Fang', 'Thunder Mori'];
+
+  Screens.leaderboard = {
+    topbar: true, navbar: true, navKey: 'profile',
+
+    render: function (el) {
+      el.innerHTML =
+        '<div class="screen-head"><button class="hud-btn" id="lb-back">' + icon('back') + '</button><h2>Rankings</h2></div>' +
+        '<div class="pad"><div class="tabs"><div class="tab active" data-t="power">Power</div>' +
+          '<div class="tab" data-t="fear">Fear</div></div><div id="lb-body"></div></div>';
+      el.querySelector('#lb-back').onclick = function () { Router.back('profile'); };
+
+      var self = this;
+      function paint(tab) {
+        UI.loading(true);
+        api.getLeaderboards().then(function (rows) {
+          UI.loading(false);
+          self._render(el, rows || [], tab);
+        }).catch(function () { UI.loading(false); self._render(el, [], tab); });
       }
-      rows.sort(function (a, b) { return (Number(b.power) || 0) - (Number(a.power) || 0); });
-      if (!rows.length) { body.innerHTML = '<div class="empty"><div class="big">🏆</div>No warriors ranked yet. Grow your power to claim the top spot!</div>'; return; }
-      body.innerHTML = '<div class="row-list">' + rows.slice(0, 20).map(function (r, i) {
-        var rank = i + 1;
-        var me = (r.playerId || r.id) === meId;
-        var st = localStorage.getItem('shogun_stateName') || (window.TERMS && window.TERMS.STATE_DEFAULT_NAME) || 'State 1';
-        return '<div class="panel list-row' + (me ? ' me-row' : '') + '">' +
-            '<div class="rank-badge rank-' + rank + '">' + (rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : rank) + '</div>' +
-            '<div style="flex:1"><div style="font-weight:700;color:var(--gold)">' + esc(r.displayName || r.name || 'Warrior') + (me ? ' <span class="pill-count">YOU</span>' : '') + '</div>' +
-            '<div class="muted" style="font-size:12px">' + esc(st) + '</div></div>' +
-            '<div style="text-align:right"><div style="font-weight:800;color:var(--gold)">⚡' + Fmt.num(r.power) + '</div><div class="muted" style="font-size:11px">power</div></div>' +
-          '</div>';
-      }).join('') + '</div>';
-    }).catch(function (e) { UI.err(e); body.innerHTML = '<div class="empty">Could not load rankings.</div>'; });
-  },
+      Array.prototype.forEach.call(el.querySelectorAll('.tab'), function (t) {
+        t.onclick = function () {
+          Array.prototype.forEach.call(el.querySelectorAll('.tab'), function (x) { x.classList.remove('active'); });
+          t.classList.add('active'); paint(t.getAttribute('data-t'));
+        };
+      });
+      paint('power');
+    },
 
-  _clans: function (root) {
-    var body = root.querySelector('#lb-body');
-    body.innerHTML = '<div class="empty"><div class="loader-ring" style="margin:0 auto"></div></div>';
-    api.getClans().then(function (clans) {
-      clans = clans || [];
-      clans.sort(function (a, b) { return (Number(b.power) || 0) - (Number(a.power) || 0) || (b.memberCount || 0) - (a.memberCount || 0); });
-      if (!clans.length) { body.innerHTML = '<div class="empty"><div class="big">🏯</div>No clans ranked yet.</div>'; return; }
-      body.innerHTML = '<div class="row-list">' + clans.map(function (c, i) {
+    _render: function (el, rows, tab) {
+      var me = { name: Game.displayName(), score: (Game.profile && Number(Game.profile.power)) || 0, isMe: true };
+      var list;
+      if (rows && rows.length) {
+        list = rows.map(function (r, i) { return { name: r.displayName || r.name || ('Lord ' + (i + 1)), score: r.power || r.score || 0, isMe: r.playerId === api.playerId }; });
+      } else {
+        // Seeded field so the board is never empty; player is inserted by score.
+        list = NAMES.map(function (n, i) { return { name: n, score: (tab === 'fear' ? 4000 : 18000) - i * 1500 + (i % 3) * 300 }; });
+        list.push(me);
+        list.sort(function (a, b) { return b.score - a.score; });
+      }
+      var body = el.querySelector('#lb-body');
+      body.innerHTML = list.map(function (r, i) {
         var rank = i + 1;
-        return '<div class="panel list-row">' +
-            '<div class="rank-badge rank-' + rank + '">' + (rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : rank) + '</div>' +
-            '<div style="flex:1"><div style="font-weight:700;color:var(--gold)">[' + esc(c.tag) + '] ' + esc(c.name) + '</div>' +
-            '<div class="muted" style="font-size:12px">👥 ' + (c.memberCount || 0) + ' / ' + c.memberCap + '</div></div>' +
-            '<div style="text-align:right"><div style="font-weight:800;color:var(--gold)">⚡' + Fmt.num(c.power) + '</div><div class="muted" style="font-size:11px">power</div></div>' +
-          '</div>';
-      }).join('') + '</div>';
-    }).catch(function (e) { UI.err(e); body.innerHTML = '<div class="empty">Could not load clans.</div>'; });
-  }
-};
+        var medal = rank <= 3 ? ['#f5c842', '#cdd6e0', '#c8922a'][rank - 1] : 'transparent';
+        return '<div class="card list-card" style="margin-bottom:8px;' + (r.isMe ? 'border-color:var(--gold)' : '') + '">' +
+          '<div style="width:30px;text-align:center;font-weight:800;color:' + (rank <= 3 ? medal : 'var(--text-dim)') + '">' + rank + '</div>' +
+          '<div class="thumb" style="width:40px;height:40px">' + icon(rank === 1 ? 'crown' : 'people') + '</div>' +
+          '<div style="flex:1"><b>' + esc(r.name) + (r.isMe ? ' <span class="lvl-badge">You</span>' : '') + '</b></div>' +
+          '<div class="row" style="gap:4px">' + icon(tab === 'fear' ? 'monster' : 'sword', 'sm') + '<b style="color:var(--gold)">' + Fmt.num(r.score) + '</b></div>' +
+        '</div>';
+      }).join('');
+    }
+  };
+})();

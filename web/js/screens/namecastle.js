@@ -1,42 +1,48 @@
-/* NAME YOUR CASTLE — set the castle name for a new player. */
-window.Screens.namecastle = {
-  hasNav: false,
-  render: function (root) {
-    var suggested = 'Castle ' + Game.displayName().replace(/[^A-Za-z0-9_]/g, '');
-    root.innerHTML =
-      '<div class="screen-bg" style="background-image:url(assets/images/settlement.webp)"></div>' +
-      '<div class="screen-inner" style="display:flex;flex-direction:column;min-height:100%">' +
-        '<div style="flex:1"></div>' +
-        '<div class="parchment" style="padding:22px 18px">' +
-          '<h1 style="font-family:Cinzel;font-size:24px;text-align:center;color:#5a3d12">Name Your Castle</h1>' +
-          '<p style="text-align:center;color:#6b4e22;font-size:13px;margin:8px 0 18px">Every legend begins with a stronghold.</p>' +
-          '<input class="input" id="nc-name" maxlength="24" placeholder="Castle name" style="background:rgba(255,255,255,.7);color:#3a2a10;border-color:#b7893c" />' +
-          '<div class="form-err" id="nc-err" style="color:#8b1a12"></div>' +
-          '<button class="btn btn-primary" id="nc-go" style="margin-top:6px">🏯 ENTER THE STATE</button>' +
-        '</div>' +
-        '<div style="flex:1"></div>' +
-      '</div>';
+/* namecastle.js — name your castle and your lord. */
+(function () {
+  'use strict';
 
-    var input = root.querySelector('#nc-name');
-    input.value = suggested.slice(0, 24);
-    var err = root.querySelector('#nc-err');
+  Screens.namecastle = {
+    render: function (el) {
+      var suggested = Game.displayName();
+      el.innerHTML =
+        '<div class="bg-cover" style="background-image:url(assets/images/settlement.webp)"></div>' +
+        '<div class="bg-scrim"></div>' +
+        '<div style="position:relative;z-index:2;padding:56px 24px 30px;min-height:100%;display:flex;flex-direction:column">' +
+          '<div class="center" style="margin-bottom:8px">' +
+            '<div class="title-md">Claim Your Seat</div>' +
+            '<p class="muted" style="font-size:13px;margin-top:6px">Every dynasty needs a name to be feared.</p>' +
+          '</div>' +
+          '<div class="panel gold stack" style="margin-top:14px">' +
+            '<div class="field">' +
+              '<label>Your Castle</label>' +
+              '<input id="nc-castle" maxlength="24" placeholder="e.g. Crimson Peak Keep" value="Ashfall Keep" />' +
+            '</div>' +
+            '<div class="field">' +
+              '<label>Your Name, Lord</label>' +
+              '<input id="nc-lord" maxlength="20" placeholder="Your commander name" value="' + esc(suggested) + '" />' +
+            '</div>' +
+            '<div class="err-text" id="nc-err"></div>' +
+            '<button class="btn" id="nc-go">Raise my banner</button>' +
+          '</div>' +
+        '</div>';
 
-    root.querySelector('#nc-go').onclick = function () {
-      var name = input.value.trim();
-      if (name.length < 2) { err.textContent = 'Choose a name of at least 2 characters.'; return; }
-      err.textContent = '';
-      api.setCastle(name);
-      UI.loading(true);
-      // Ensure profile + resources are ready before entering the hub.
-      Promise.all([
-        Game.refreshProfile().catch(function () {}),
-        Game.refreshResources().catch(function () {})
-      ]).then(function () {
-        UI.loading(false);
-        UI.ok('Your banner rises over ' + name + '!');
-        Router.go('settlement');
-      });
-    };
-    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') root.querySelector('#nc-go').click(); });
-  }
-};
+      el.querySelector('#nc-go').onclick = function () {
+        var castle = el.querySelector('#nc-castle').value.trim();
+        var lord = el.querySelector('#nc-lord').value.trim();
+        var err = el.querySelector('#nc-err');
+        if (castle.length < 2) { err.textContent = 'Give your castle a name (2+ characters).'; return; }
+        if (lord.length < 2) { err.textContent = 'Give your lord a name (2+ characters).'; return; }
+        localStorage.setItem('shogun_castleName', castle);
+        localStorage.setItem('shogun_commander', lord);
+
+        // Place the castle at the heart of the realm (best-effort; ignore seed errors).
+        UI.loading(true);
+        api.placeCastle(600, 600).catch(function () {}).then(function () {
+          UI.loading(false);
+          Router.reset('prologue');
+        });
+      };
+    }
+  };
+})();

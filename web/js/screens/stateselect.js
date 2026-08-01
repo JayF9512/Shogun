@@ -1,45 +1,71 @@
-/* STATE SELECT — choose a State before playing. */
-window.Screens.stateselect = {
-  hasNav: false,
-  render: function (root) {
-    root.innerHTML =
-      '<div class="screen-bg" style="background-image:url(assets/images/state-select.webp)"></div>' +
-      '<div class="screen-inner">' +
-        '<h1 class="h-title">Select Your State</h1>' +
-        '<p class="h-sub">Choose a state to begin your conquest. Recommended States have room to grow.</p>' +
-        '<div id="st-list" class="row-list" style="margin-top:18px"><div class="empty"><div class="loader-ring" style="margin:0 auto"></div></div></div>' +
+/* stateselect.js — choose your State (server). Only State 1 is open. */
+(function () {
+  'use strict';
+
+  function orb(s) {
+    var cap = s.playerCap || 2000;
+    var count = s.playerCount || 0;
+    var ratio = count / cap;
+    var badge = s.isFull ? 'full' : (ratio > 0.8 ? 'busy' : 'open');
+    var badgeTxt = s.isFull ? 'FULL' : (ratio > 0.8 ? 'FILLING FAST' : 'OPEN');
+    var recommended = s.number === 1;
+    return '<div class="state-orb" data-id="' + esc(s.id) + '" data-name="' + esc(s.name) + '">' +
+      (recommended ? '<div class="recommend">RECOMMENDED</div>' : '') +
+      '<div class="subtitle">' + TERMS.state + '</div>' +
+      '<div class="num">' + (s.name || ('State ' + s.number)) + (recommended ? ' \u2605' : '') + '</div>' +
+      '<div class="badge-open ' + badge + '">' + badgeTxt + '</div>' +
+      '<div class="muted" style="font-size:12px;margin-top:10px">' + Fmt.int(count) + ' / ' + Fmt.int(cap) + ' warlords</div>' +
+      '<div class="bar" style="margin-top:8px"><i style="width:' + Math.min(100, ratio * 100) + '%"></i></div>' +
       '</div>';
-
-    var list = root.querySelector('#st-list');
-    UI.loading(true);
-    api.getStates().then(function (states) {
-      UI.loading(false);
-      if (!states || !states.length) { list.innerHTML = '<div class="empty">No States are open right now.</div>'; return; }
-      // Recommend the first open, non-full state (State 1 by default).
-      var recId = (states.filter(function (s) { return s.isOpen && !s.isFull; })[0] || states[0]).id;
-      list.innerHTML = states.map(function (s) {
-        var open = s.isOpen && !s.isFull;
-        return '<div class="panel list-row" data-id="' + s.id + '" style="cursor:pointer">' +
-            '<div class="rank-badge">🏯</div>' +
-            '<div style="flex:1">' +
-              '<div style="font-weight:800;color:var(--gold);font-size:15px">' + esc(s.name) +
-                (s.id === recId ? ' <span class="badge badge-rec">RECOMMENDED</span>' : '') + '</div>' +
-              '<div class="muted" style="font-size:12px;margin-top:3px">👥 ' + Fmt.int(s.playerCount || 0) + ' / ' + Fmt.int(s.playerCap || 0) + ' warriors</div>' +
-            '</div>' +
-            '<span class="badge ' + (open ? 'badge-open' : 'badge-closed') + '">' + (open ? 'OPEN' : 'FULL') + '</span>' +
-          '</div>';
-      }).join('');
-
-      Array.prototype.forEach.call(list.querySelectorAll('[data-id]'), function (row) {
-        row.onclick = function () {
-          var id = row.getAttribute('data-id');
-          var st = states.filter(function (s) { return s.id === id; })[0];
-          if (!(st.isOpen && !st.isFull)) { UI.toast('That State is closed. Choose another.', 'error'); return; }
-          api.setState(id);
-          localStorage.setItem('shogun_stateName', st.name);
-          Router.go('welcome');
-        };
-      });
-    }).catch(function (e) { UI.loading(false); list.innerHTML = '<div class="empty">Could not load States. Please try again.</div>'; UI.err(e); });
   }
-};
+
+  Screens.stateselect = {
+    render: function (el) {
+      el.innerHTML =
+        '<div class="bg-cover" style="background-image:url(assets/images/state-select.webp)"></div>' +
+        '<div class="bg-scrim"></div>' +
+        '<div style="position:relative;z-index:2;padding:60px 20px 30px;min-height:100%;display:flex;flex-direction:column">' +
+          '<div class="center" style="margin-bottom:20px">' +
+            '<div class="title-lg">Choose Your State</div>' +
+            '<div class="subtitle" style="margin-top:8px">Where your legend begins</div>' +
+          '</div>' +
+          '<div id="state-list" class="stack" style="flex:1"></div>' +
+          '<button class="btn" id="ss-confirm" disabled style="margin-top:18px">Select a State to continue</button>' +
+        '</div>';
+
+      var list = el.querySelector('#state-list');
+      var confirm = el.querySelector('#ss-confirm');
+      var selected = null;
+
+      UI.loading(true);
+      api.getStates().then(function (states) {
+        UI.loading(false);
+        if (!states || !states.length) { states = [{ id: 'seed', name: 'State 1', number: 1, playerCap: 2000, playerCount: 18, isOpen: true }]; }
+        list.innerHTML = states.map(orb).join('');
+        Array.prototype.forEach.call(list.querySelectorAll('.state-orb'), function (o) {
+          o.onclick = function () {
+            Array.prototype.forEach.call(list.querySelectorAll('.state-orb'), function (x) { x.style.outline = 'none'; });
+            o.style.outline = '2px solid var(--gold)';
+            o.style.outlineOffset = '2px';
+            selected = { id: o.getAttribute('data-id'), name: o.getAttribute('data-name') };
+            confirm.disabled = false;
+            confirm.textContent = 'Enter ' + selected.name;
+          };
+        });
+        // auto-select the recommended state
+        var first = list.querySelector('.state-orb');
+        if (first) first.click();
+      }).catch(function (e) {
+        UI.loading(false);
+        list.innerHTML = '<div class="empty">' + icon('map') + '<div>Could not load states. ' + esc(api.friendly(e)) + '</div></div>';
+      });
+
+      confirm.onclick = function () {
+        if (!selected) return;
+        localStorage.setItem('shogun_stateName', selected.name || 'State 1');
+        if (selected.id && selected.id !== 'seed') localStorage.setItem('shogun_pendingStateId', selected.id);
+        Router.go('welcome');
+      };
+    }
+  };
+})();

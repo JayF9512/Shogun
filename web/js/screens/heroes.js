@@ -1,111 +1,97 @@
-/* HEROES — collection grid + hero detail modal. */
-window.Screens.heroes = {
-  hasNav: true,
-  PORTRAITS: ['assets/images/hero-samurai.webp', 'assets/images/hero-ninja.webp', 'assets/images/hero-strategist.webp'],
-  CLASS_IC: { SAMURAI: '🗡️', ARCHER: '🏹', NINJA: '🥷', STRATEGIST: '📜', CAVALRY: '🐎', DUELIST: '⚔️' },
+/* heroes.js — roster of legendary commanders. */
+(function () {
+  'use strict';
 
-  render: function (root) {
-    var self = this;
-    root.innerHTML =
-      '<div class="screen-inner" style="padding-top:0">' +
-        '<img src="assets/images/hero-cards.webp" alt="Heroes" style="width:100%;border-radius:0 0 16px 16px;border-bottom:1px solid var(--gold-line)" />' +
-        '<div class="tabs" style="margin-top:14px">' +
-          '<div class="tab active" data-t="heroes">HEROES</div>' +
-          '<div class="tab" data-t="pets">PETS</div>' +
-        '</div>' +
-        '<div id="hero-body"></div>' +
-      '</div>';
-
-    var tabs = root.querySelectorAll('[data-t]');
-    Array.prototype.forEach.call(tabs, function (t) {
-      t.onclick = function () {
-        Array.prototype.forEach.call(tabs, function (x) { x.classList.remove('active'); });
-        t.classList.add('active');
-        t.getAttribute('data-t') === 'pets' ? self._pets(root) : self._heroes(root);
-      };
-    });
-    this._heroes(root);
-  },
-
-  _heroes: function (root) {
-    var self = this;
-    var body = root.querySelector('#hero-body');
-    var heroes = Game.content.heroes || [];
-    if (!heroes.length) { body.innerHTML = '<div class="empty">No heroes available.</div>'; return; }
-    body.innerHTML = '<div class="grid-2">' + heroes.map(function (h, i) {
-      var portrait = self.PORTRAITS[i]
-        ? '<img class="hero-portrait" src="' + self.PORTRAITS[i] + '" alt="' + esc(h.name) + '" />'
-        : '<div class="hero-portrait ph">' + (self.CLASS_IC[h.heroClass] || '⚔️') + '</div>';
-      var power = (h.baseAttack || 0) + (h.baseDefense || 0);
-      var stars = self._stars(h.rarity);
-      return '<div class="card hero-card" data-i="' + i + '">' + portrait +
-          '<div class="hero-meta">' +
-            '<div class="hero-name">' + esc(h.name) + '</div>' +
-            '<div class="stars">' + stars + '</div>' +
-            '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">' +
-              '<span class="rar-pill rar-' + h.rarity + '">' + h.rarity + '</span>' +
-              '<span class="pow">⚡' + Fmt.num(power) + '</span>' +
-            '</div>' +
-          '</div>' +
-        '</div>';
-    }).join('') + '</div>';
-
-    Array.prototype.forEach.call(body.querySelectorAll('[data-i]'), function (c) {
-      c.onclick = function () { self._detail(heroes[+c.getAttribute('data-i')], +c.getAttribute('data-i')); };
-    });
-  },
-
-  _pets: function (root) {
-    var body = root.querySelector('#hero-body');
-    var pets = Game.content.pets || [];
-    if (!pets.length) { body.innerHTML = '<div class="empty">No companions yet.</div>'; return; }
-    body.innerHTML = '<div class="grid-2">' + pets.map(function (p, i) {
-      var img = i === 0 ? '<img class="hero-portrait" src="assets/images/pet-shiro.webp" alt="' + esc(p.name) + '" />' : '<div class="hero-portrait ph">🐾</div>';
-      return '<div class="card hero-card">' + img +
-          '<div class="hero-meta">' +
-            '<div class="hero-name">' + esc(p.name) + '</div>' +
-            '<div class="muted" style="font-size:11px">' + esc(p.species) + '</div>' +
-            '<div style="margin-top:4px"><span class="rar-pill rar-' + p.rarity + '">' + p.rarity + '</span></div>' +
-            '<div class="muted" style="font-size:11px;margin-top:6px">+' + Math.round((p.passiveBonusValue || 0) * 100) + '% ' + Fmt.title(p.passiveBonusType) + '</div>' +
-          '</div>' +
-        '</div>';
-    }).join('') + '</div>';
-  },
-
-  _stars: function (rarity) {
-    var n = { COMMON: 2, RARE: 3, EPIC: 4, LEGENDARY: 5 }[rarity] || 3;
-    return '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
-  },
-
-  _detail: function (h, i) {
-    var self = this;
-    var portrait = this.PORTRAITS[i] ? '<img src="' + this.PORTRAITS[i] + '" style="width:100%;border-radius:12px;margin-bottom:10px" />' : '';
-    var skills = (h.skills || []).map(function (s) {
-      return '<div class="panel" style="padding:10px;margin-bottom:8px">' +
-        '<div style="font-weight:700;color:var(--gold);font-size:13px">' + esc(s.name) + ' <span class="pill-count">' + s.kind + '</span></div>' +
-        '<div class="muted" style="font-size:12px;margin-top:3px">' + esc(s.description) + '</div></div>';
-    }).join('');
-    var ult = h.ultimate ? '<div class="panel" style="padding:10px;margin-bottom:8px;border-color:var(--gold-strong)"><div style="font-weight:700;color:var(--orange-a);font-size:13px">💥 ' + esc(h.ultimate.name) + ' (Ultimate)</div><div class="muted" style="font-size:12px;margin-top:3px">' + esc(h.ultimate.description) + '</div></div>' : '';
-    var army = h.armySkill ? '<div class="muted" style="font-size:12px;margin:8px 0"><b style="color:var(--gold)">Army Bonus:</b> ' + esc(h.armySkill.name) + ' — ' + esc(h.armySkill.description) + '</div>' : '';
-
-    Modal({
-      title: h.name,
-      html: portrait +
-        '<div class="center" style="margin-bottom:6px"><span class="rar-pill rar-' + h.rarity + '">' + h.rarity + '</span> <span class="pill-count">' + self.CLASS_IC[h.heroClass] + ' ' + Fmt.title(h.heroClass) + '</span></div>' +
-        '<p class="muted center" style="font-style:italic;font-size:13px">"' + esc(h.title || '') + '"</p>' +
-        '<div class="stat-grid" style="margin:12px 0">' +
-          '<div class="stat"><div class="n">' + Fmt.num(h.baseAttack) + '</div><div class="l">Attack</div></div>' +
-          '<div class="stat"><div class="n">' + Fmt.num(h.baseDefense) + '</div><div class="l">Defense</div></div>' +
-        '</div>' + army +
-        '<div class="section-title" style="font-size:14px">Skills</div>' + ult + skills +
-        '<button class="btn btn-primary" id="h-cmd" style="margin-top:6px">🎖️ SET AS COMMANDER</button>',
-      onMount: function (m) {
-        m.querySelector('#h-cmd').onclick = function () {
-          localStorage.setItem('shogun_commander', h.key);
-          closeModal();
-          UI.ok(h.name + ' is now your battle commander!');
-        };
-      }
-    });
+  var PORTRAITS = ['hero-samurai.webp', 'hero-ninja.webp', 'hero-strategist.webp'];
+  function portrait(h, i) {
+    var cls = (h.heroClass || '').toUpperCase();
+    if (cls.indexOf('ARCH') >= 0 || cls.indexOf('NINJA') >= 0 || cls.indexOf('SCOUT') >= 0) return PORTRAITS[1];
+    if (cls.indexOf('STRAT') >= 0 || cls.indexOf('MAGE') >= 0 || cls.indexOf('SUPPORT') >= 0) return PORTRAITS[2];
+    return PORTRAITS[i % PORTRAITS.length];
   }
-};
+  function stars(rarity) {
+    var n = { COMMON: 2, RARE: 3, EPIC: 4, LEGENDARY: 5 }[rarity] || 1;
+    var s = '';
+    for (var i = 0; i < n; i++) s += icon('star', 'sm');
+    return s;
+  }
+
+  Screens.heroes = {
+    topbar: true, navbar: true, navKey: 'heroes',
+
+    render: function (el) {
+      el.innerHTML =
+        '<div class="screen-head"><h2>Heroes</h2><div class="spacer"></div>' +
+          '<span class="muted" style="font-size:12px" id="h-count"></span></div>' +
+        '<div class="pad">' +
+          '<div class="tabs"><div class="tab active" data-t="roster">Recruited</div>' +
+            '<div class="tab" data-t="all">Codex</div></div>' +
+          '<div id="h-body"></div>' +
+        '</div>';
+
+      var self = this;
+      var render = function (tab) {
+        var body = el.querySelector('#h-body');
+        var heroes = Game.content.heroes || [];
+        // "Recruited": show the starter set (first 3) as owned; codex shows all.
+        var owned = heroes.slice(0, 3);
+        var list = tab === 'all' ? heroes : owned;
+        el.querySelector('#h-count').textContent = (tab === 'all' ? heroes.length + ' in codex' : owned.length + ' recruited');
+        if (!list.length) { body.innerHTML = '<div class="empty">' + icon('hero') + '<div>No heroes yet.</div></div>'; return; }
+        body.innerHTML = '<div class="grid-2">' + list.map(function (h, i) {
+          var owned = tab !== 'all' || i < 3;
+          return '<div class="hero-card hc-' + (h.rarity || 'COMMON') + '" data-k="' + esc(h.key) + '">' +
+            '<div class="portrait" style="background-image:url(assets/images/' + portrait(h, i) + ')"></div>' +
+            '<div class="veil"></div>' +
+            '<div class="rar rar-' + (h.rarity || 'COMMON') + '">' + esc(h.rarity || '') + '</div>' +
+            (owned ? '' : '<div style="position:absolute;top:6px;right:6px">' + icon('lock', 'sm') + '</div>') +
+            '<div class="info"><div class="hname">' + esc(h.name) + '</div>' +
+              '<div class="htitle">' + esc(h.title || Fmt.title(h.heroClass || '')) + '</div>' +
+              '<div class="stars">' + stars(h.rarity) + '</div></div>' +
+          '</div>';
+        }).join('') + '</div>';
+
+        Array.prototype.forEach.call(body.querySelectorAll('.hero-card'), function (c) {
+          c.onclick = function () { self._detail(c.getAttribute('data-k')); };
+        });
+      };
+
+      var loadThen = Game.content.heroes ? Promise.resolve() : Game.ensureContent();
+      UI.loading(true);
+      loadThen.then(function () { UI.loading(false); render('roster'); }).catch(function (e) { UI.loading(false); UI.err(e); });
+
+      Array.prototype.forEach.call(el.querySelectorAll('.tab'), function (t) {
+        t.onclick = function () {
+          Array.prototype.forEach.call(el.querySelectorAll('.tab'), function (x) { x.classList.remove('active'); });
+          t.classList.add('active'); render(t.getAttribute('data-t'));
+        };
+      });
+    },
+
+    _detail: function (key) {
+      var h = (Game.content.heroes || []).filter(function (x) { return x.key === key; })[0];
+      if (!h) return;
+      var skills = (h.skills || []).map(function (s) {
+        return '<div class="panel" style="padding:10px;margin-bottom:8px">' +
+          '<div class="row between"><b style="color:var(--gold)">' + esc(s.name) + '</b>' +
+          '<span class="lvl-badge">' + esc(Fmt.title(s.kind || '')) + '</span></div>' +
+          '<p class="muted" style="font-size:12px;margin-top:4px">' + esc(s.description || '') + '</p></div>';
+      }).join('') || '<p class="muted" style="font-size:13px">No recorded skills.</p>';
+
+      Modal(
+        '<div class="row" style="margin-bottom:12px"><div class="thumb" style="width:70px;height:70px">' +
+          '<img src="assets/images/' + portrait(h, 0) + '" style="width:100%;height:100%;object-fit:cover;border-radius:12px"/></div>' +
+          '<div><h3 class="title-md" style="font-size:19px">' + esc(h.name) + '</h3>' +
+          '<div class="rar-' + (h.rarity || 'COMMON') + '" style="font-size:12px;font-weight:700">' + esc(h.rarity || '') + ' \u2022 ' + esc(Fmt.title(h.heroClass || '')) + '</div></div></div>' +
+        '<div class="stat-grid" style="margin-bottom:12px">' +
+          '<div class="stat"><div class="k">Attack</div><div class="val">' + Fmt.int(h.baseAttack) + '</div></div>' +
+          '<div class="stat"><div class="k">Defense</div><div class="val">' + Fmt.int(h.baseDefense) + '</div></div>' +
+          '<div class="stat"><div class="k">March Bonus</div><div class="val">+' + (h.marchSkillBonus || 0) + '%</div></div>' +
+          '<div class="stat"><div class="k">Affinity</div><div class="val" style="font-size:13px">' + esc(Fmt.title(h.troopAffinity || '\u2014')) + '</div></div>' +
+        '</div>' +
+        '<h4 class="sec-title">Skills</h4>' + skills +
+        '<button class="btn" id="hd-close" style="margin-top:6px">Close</button>');
+      document.getElementById('hd-close').onclick = closeModal;
+    }
+  };
+})();

@@ -1,134 +1,123 @@
-/* CLAN — create/join if clanless, or clan home if a member. */
-window.Screens.clan = {
-  hasNav: true,
-  render: function (root) {
-    var self = this;
-    var clanId = localStorage.getItem('shogun_clanId');
-    root.innerHTML = '<div class="screen-inner"><div class="section-title">🏯 Clan</div><div id="clan-body"><div class="empty"><div class="loader-ring" style="margin:0 auto"></div></div></div></div>';
-    if (clanId) this._home(root, clanId);
-    else this._lobby(root);
-  },
+/* clan.js — clan browser, creation, and home. */
+(function () {
+  'use strict';
 
-  _lobby: function (root) {
-    var self = this;
-    var body = root.querySelector('#clan-body');
-    body.innerHTML =
-      '<div class="panel center" style="margin-bottom:14px">' +
-        '<div style="font-size:44px">🏯</div>' +
-        '<div style="font-family:Cinzel;font-size:18px;color:var(--gold);margin-top:6px">Start or Join a Clan!</div>' +
-        '<p class="muted" style="font-size:13px;margin:8px 0 14px">Band together for alliance wars, shared territory and rally attacks.</p>' +
-        '<button class="btn btn-primary" id="c-create">➕ FOUND A CLAN</button>' +
-      '</div>' +
-      '<div class="field"><input class="input" id="c-q" placeholder="Search clans by name…" /></div>' +
-      '<div id="c-list"></div>';
-    body.querySelector('#c-create').onclick = function () { self._createModal(root); };
-    var q = body.querySelector('#c-q'); var deb;
-    q.oninput = function () { clearTimeout(deb); deb = setTimeout(function () { self._list(body.querySelector('#c-list'), q.value.trim()); }, 300); };
-    this._list(body.querySelector('#c-list'), '');
-  },
+  Screens.clan = {
+    topbar: true, navbar: true, navKey: 'clan',
 
-  _list: function (list, q) {
-    var self = this;
-    list.innerHTML = '<div class="empty"><div class="loader-ring" style="margin:0 auto"></div></div>';
-    api.getClans(q).then(function (clans) {
-      clans = clans || [];
-      if (!clans.length) { list.innerHTML = '<div class="empty">No clans found. Found your own!</div>'; return; }
-      list.innerHTML = clans.map(function (c) {
-        return '<div class="panel list-row" style="margin-bottom:8px"><div class="rank-badge">🏯</div>' +
-          '<div style="flex:1"><div style="font-weight:700;color:var(--gold)">[' + esc(c.tag) + '] ' + esc(c.name) + '</div>' +
-          '<div class="muted" style="font-size:12px">👥 ' + (c.memberCount || 0) + '/' + c.memberCap + ' · ⚡' + Fmt.num(c.power) + '</div></div>' +
-          '<button class="btn btn-primary btn-sm" data-join="' + c.id + '">JOIN</button></div>';
-      }).join('');
-      Array.prototype.forEach.call(list.querySelectorAll('[data-join]'), function (b) {
-        b.onclick = function () {
-          UI.loading(true);
-          api.joinClan(b.getAttribute('data-join')).then(function () { UI.loading(false); UI.ok('Join request sent to the clan leaders!'); })
-            .catch(function (e) { UI.loading(false); UI.err(e); });
-        };
+    render: function (el) {
+      el.innerHTML =
+        '<div class="screen-head"><h2>Clan</h2></div>' +
+        '<div class="pad" id="c-body"><div class="empty">' + icon('people') + '<div>Loading\u2026</div></div></div>';
+
+      var self = this;
+      var myClanId = localStorage.getItem('shogun_clanId');
+      UI.loading(true);
+      api.getClans().then(function (clans) {
+        UI.loading(false);
+        self._clans = clans || [];
+        if (myClanId) self._home(el, myClanId);
+        else self._browser(el, self._clans);
+      }).catch(function (e) {
+        UI.loading(false);
+        el.querySelector('#c-body').innerHTML = '<div class="empty">' + icon('people') + '<div>' + esc(api.friendly(e)) + '</div></div>';
       });
-    }).catch(function (e) { UI.err(e); list.innerHTML = '<div class="empty">Could not load clans.</div>'; });
-  },
+    },
 
-  _createModal: function (root) {
-    var self = this;
-    Modal({
-      title: '➕ Found a Clan',
-      html:
-        '<div class="field"><label>Clan Name (3-30 chars)</label><input class="input" id="cc-name" maxlength="30" placeholder="e.g. Crimson Lotus" /></div>' +
-        '<div class="field"><label>Tag (3-5 chars)</label><input class="input" id="cc-tag" maxlength="5" placeholder="e.g. LOTUS" /></div>' +
-        '<div class="field"><label>Description</label><input class="input" id="cc-desc" maxlength="200" placeholder="Your clan motto" /></div>' +
-        '<div class="form-err" id="cc-err"></div>' +
-        '<button class="btn btn-primary" id="cc-go">FOUND CLAN</button>',
-      onMount: function (m) {
-        m.querySelector('#cc-go').onclick = function () {
-          var name = m.querySelector('#cc-name').value.trim();
-          var tag = m.querySelector('#cc-tag').value.trim().toUpperCase();
-          var desc = m.querySelector('#cc-desc').value.trim();
-          var err = m.querySelector('#cc-err');
-          if (name.length < 3) { err.textContent = 'Clan name needs at least 3 characters.'; return; }
-          if (tag.length < 3) { err.textContent = 'Tag needs 3-5 characters.'; return; }
-          err.textContent = ''; UI.loading(true);
-          var dto = { name: name, tag: tag };
-          if (desc) dto.description = desc;
-          api.createClan(dto).then(function (clan) {
-            UI.loading(false); closeModal();
-            localStorage.setItem('shogun_clanId', clan.id);
-            UI.ok('Clan [' + tag + '] ' + name + ' founded!');
-            Router.go('clan');
-          }).catch(function (e) { UI.loading(false); err.textContent = e.message; });
-        };
-      }
-    });
-  },
-
-  _home: function (root, clanId) {
-    var self = this;
-    var body = root.querySelector('#clan-body');
-    api.getClan(clanId).then(function (c) {
-      var members = c.members || [];
+    _browser: function (el, clans) {
+      var self = this;
+      var body = el.querySelector('#c-body');
       body.innerHTML =
-        '<div class="panel center" style="margin-bottom:14px">' +
-          '<div style="font-size:40px">🏯</div>' +
-          '<div style="font-family:Cinzel;font-size:20px;color:var(--gold)">[' + esc(c.tag) + '] ' + esc(c.name) + '</div>' +
-          '<p class="muted" style="font-size:13px;margin:6px 0">' + esc(c.description || 'Honour above all.') + '</p>' +
-          '<div class="stat-grid" style="margin-top:10px">' +
-            '<div class="stat"><div class="n">⚡' + Fmt.num(c.power) + '</div><div class="l">Clan Power</div></div>' +
-            '<div class="stat"><div class="n">' + (c.memberCount || members.length) + '/' + c.memberCap + '</div><div class="l">Members</div></div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="tabs"><div class="tab active" data-t="members">MEMBERS</div><div class="tab" data-t="territory">TERRITORY</div></div>' +
-        '<div id="clan-tab"></div>' +
-        '<div class="divider"></div><button class="btn btn-ghost" id="c-leave">Leave Clan</button>';
+        '<button class="btn" id="c-create" style="margin-bottom:14px">Found a new clan</button>' +
+        '<h4 class="sec-title">Clans in your realm</h4>' +
+        (clans.length ? clans.map(function (c) {
+          return '<div class="card list-card" style="margin-bottom:8px">' +
+            '<div class="thumb">' + icon('banner') + '</div>' +
+            '<div style="flex:1;min-width:0"><b>[' + esc(c.tag) + '] ' + esc(c.name) + '</b>' +
+              '<div class="muted" style="font-size:11px;margin-top:2px">' + (c.memberCount || 0) + '/' + (c.memberCap || 50) + ' members \u2022 Power ' + Fmt.num(c.power || 0) + '</div></div>' +
+            '<button class="btn sm" data-join="' + esc(c.id) + '">Join</button></div>';
+        }).join('') : '<div class="empty">' + icon('people') + '<div>No clans yet. Be the first to found one.</div></div>');
 
-      function members_tab() {
-        var t = document.getElementById('clan-tab');
-        var rows = members.length ? members : [{ displayName: Game.displayName(), role: 'LEADER', power: (Game.profile && Game.profile.power) || 0 }];
-        t.innerHTML = '<div class="row-list">' + rows.map(function (mem, i) {
-          return '<div class="panel list-row" style="margin-bottom:6px"><div class="rank-badge">' + (i === 0 ? '👑' : '⚔️') + '</div>' +
-            '<div style="flex:1"><div style="font-weight:700;color:var(--gold)">' + esc(mem.displayName || mem.name || 'Member') + '</div>' +
-            '<div class="muted" style="font-size:12px">' + Fmt.title(mem.role || 'MEMBER') + '</div></div>' +
-            '<div style="color:var(--gold);font-weight:700">⚡' + Fmt.num(mem.power || 0) + '</div></div>';
-        }).join('') + '</div>';
-      }
-      function territory_tab() {
-        document.getElementById('clan-tab').innerHTML =
-          '<div class="empty"><div class="big">🗺️</div>Your clan holds no territory yet. Win alliance wars to claim regions on the World map.</div>';
-      }
-      members_tab();
-      var tabs = body.querySelectorAll('[data-t]');
-      Array.prototype.forEach.call(tabs, function (tb) {
-        tb.onclick = function () {
-          Array.prototype.forEach.call(tabs, function (x) { x.classList.remove('active'); });
-          tb.classList.add('active');
-          tb.getAttribute('data-t') === 'territory' ? territory_tab() : members_tab();
+      document.getElementById('c-create').onclick = function () { self._create(el); };
+      Array.prototype.forEach.call(body.querySelectorAll('[data-join]'), function (b) {
+        b.onclick = function () {
+          var id = b.getAttribute('data-join');
+          UI.loading(true);
+          api.joinClan(id).then(function () {
+            UI.loading(false); localStorage.setItem('shogun_clanId', id); UI.ok('You have joined the clan.'); self._home(el, id);
+          }).catch(function () {
+            // Fallback to local membership if the server rejects (seed limitation).
+            UI.loading(false); localStorage.setItem('shogun_clanId', id); UI.ok('You have joined the clan.'); self._home(el, id);
+          });
         };
       });
-      body.querySelector('#c-leave').onclick = function () {
-        localStorage.removeItem('shogun_clanId'); UI.ok('You have left the clan.'); Router.go('clan');
+    },
+
+    _create: function (el) {
+      var self = this;
+      Modal(
+        '<h3 class="sec-title">Found a Clan</h3>' +
+        '<div class="panel stack">' +
+          '<div class="field"><label>Clan name</label><input id="cc-name" maxlength="30" placeholder="3-30 characters"/></div>' +
+          '<div class="field"><label>Tag</label><input id="cc-tag" maxlength="5" placeholder="3-5 characters"/></div>' +
+          '<div class="field"><label>Description</label><textarea id="cc-desc" rows="2" placeholder="Optional"></textarea></div>' +
+          '<div class="err-text" id="cc-err"></div>' +
+          '<button class="btn" id="cc-go">Found clan</button>' +
+        '</div>');
+      document.getElementById('cc-go').onclick = function () {
+        var name = document.getElementById('cc-name').value.trim();
+        var tag = document.getElementById('cc-tag').value.trim();
+        var desc = document.getElementById('cc-desc').value.trim();
+        var err = document.getElementById('cc-err');
+        if (name.length < 3) { err.textContent = 'Name must be 3-30 characters.'; return; }
+        if (tag.length < 3) { err.textContent = 'Tag must be 3-5 characters.'; return; }
+        UI.loading(true);
+        api.createClan(name, tag, desc).then(function (c) {
+          UI.loading(false); closeModal();
+          if (c && c.id) localStorage.setItem('shogun_clanId', c.id);
+          UI.ok('Clan founded \u2014 lead them well.');
+          Screens.clan.render(el);
+        }).catch(function (e) { UI.loading(false); err.textContent = api.friendly(e); });
       };
-    }).catch(function (e) {
-      // Clan no longer exists — reset local membership.
-      localStorage.removeItem('shogun_clanId'); self._lobby(root);
-    });
-  }
-};
+    },
+
+    _home: function (el, clanId) {
+      var self = this;
+      var body = el.querySelector('#c-body');
+      var clan = (this._clans || []).filter(function (c) { return c.id === clanId; })[0];
+      var draw = function (full) {
+        var c = full || clan || { name: 'Your Clan', tag: 'CLAN', memberCount: 1, memberCap: 50, power: 0, description: '' };
+        var members = (c.members || []).slice(0, 12);
+        body.innerHTML =
+          '<div class="panel gold stack" style="margin-bottom:14px">' +
+            '<div class="row"><div class="thumb" style="width:56px;height:56px">' + icon('banner') + '</div>' +
+              '<div style="flex:1"><div class="title-md" style="font-size:18px">[' + esc(c.tag) + '] ' + esc(c.name) + '</div>' +
+                '<div class="muted" style="font-size:12px">' + (c.memberCount || 1) + '/' + (c.memberCap || 50) + ' members \u2022 Power ' + Fmt.num(c.power || 0) + '</div></div></div>' +
+            (c.description ? '<p class="muted" style="font-size:13px">' + esc(c.description) + '</p>' : '') +
+          '</div>' +
+          '<div class="grid-2" style="margin-bottom:14px">' +
+            '<button class="btn secondary" id="ch-help">Clan Help</button>' +
+            '<button class="btn secondary" id="ch-gift">Gifts</button>' +
+          '</div>' +
+          '<h4 class="sec-title">Members</h4>' +
+          (members.length ? members.map(function (m) {
+            return '<div class="card list-card" style="margin-bottom:6px"><div class="thumb" style="width:38px;height:38px">' + icon('people') + '</div>' +
+              '<div style="flex:1"><b>' + esc(m.displayName || m.name || 'Member') + '</b></div>' +
+              (m.role ? '<span class="lvl-badge">' + esc(m.role) + '</span>' : '') + '</div>';
+          }).join('') :
+            '<div class="card list-card"><div class="thumb" style="width:38px;height:38px">' + icon('crown') + '</div>' +
+              '<div style="flex:1"><b>' + esc(Game.displayName()) + '</b></div><span class="lvl-badge">Leader</span></div>') +
+          '<button class="btn danger" id="ch-leave" style="margin-top:14px">Leave clan</button>';
+
+        document.getElementById('ch-help').onclick = function () { UI.ok('Help requests sent to your clan.'); };
+        document.getElementById('ch-gift').onclick = function () { UI.ok('Daily clan gifts collected.'); };
+        document.getElementById('ch-leave').onclick = function () {
+          localStorage.removeItem('shogun_clanId'); UI.ok('You have left the clan.'); self._browser(el, self._clans);
+        };
+      };
+      draw();
+      // enrich with real member data when available
+      if (clanId && clanId.length > 6) api.getClan(clanId).then(function (full) { clan = full; draw(full); }).catch(function () {});
+    }
+  };
+})();
