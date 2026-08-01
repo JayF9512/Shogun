@@ -61,6 +61,9 @@ namespace ShadowsOfTheShogun.Core
             ServiceLocator.Register(new MarchService(Api));
             ServiceLocator.Register(new ClanService(Api));
             ServiceLocator.Register(new StoreService(Api));
+            ServiceLocator.Register(new ContentService(Api));
+            ServiceLocator.Register(new SeasonPassService(Api));
+            ServiceLocator.Register(new LeaderboardService(Api));
 
             // Cross-cutting managers.
             Resources = new ResourceManager(this, ServiceLocator.Get<EconomyService>());

@@ -8,8 +8,14 @@ namespace ShadowsOfTheShogun.Core
     /// </summary>
     public static class Constants
     {
+        // --- Build -------------------------------------------------------
+        public const string GameVersion = "0.1.0";
+
         // --- API ---------------------------------------------------------
-        public const string DefaultApiBaseUrl = "https://api.shadowsoftheshogun.com/api";
+        /// <summary>Live backend base URL (includes the /api prefix).</summary>
+        public const string ApiBaseUrl = "https://728065aeb.abacusai.cloud/api";
+        /// <summary>Legacy alias kept for backwards compatibility.</summary>
+        public const string DefaultApiBaseUrl = ApiBaseUrl;
         public const string ApiPrefix = "/api";
         public const int RequestTimeoutSeconds = 20;
 
