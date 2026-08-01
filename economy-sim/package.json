@@ -1,7 +1,20 @@
 {
   "name": "shogun-economy-sim",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "F2P vs paid economy balance simulation for Shadows of the Shogun",
   "private": true,
-  "scripts": { "simulate": "ts-node simulate.ts" },
-  "devDependencies": { "ts-node": "^10.9.2", "typescript": "^5.3.3", "@types/node": "^20.11.5" }
+  "scripts": {
+    "simulate": "ts-node src/simulate.ts",
+    "start": "ts-node src/simulate.ts",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "csv-writer": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
 }
